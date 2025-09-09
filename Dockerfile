@@ -4,6 +4,7 @@ WORKDIR /usr/src/app
 
 COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./src ./src
+
 ARG BUILD_MODE=release
 
 RUN echo "Building in $BUILD_MODE mode"
