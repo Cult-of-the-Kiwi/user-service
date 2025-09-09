@@ -1,0 +1,33 @@
+name: Test
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    back-test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+
+            - name: Install Rust toolchain
+              if: steps.check_dir.outputs.skip == 'false'
+              run: |
+                  curl https://sh.rustup.rs -sSf | sh -s -- -y
+                  source $HOME/.cargo/env
+                  rustup default stable
+
+            - name: Build Debug
+              run: cargo build
+
+            - name: Build Release
+              run: cargo build --release
+
+            - name: Run tests
+              run: cargo test -- --nocapture
