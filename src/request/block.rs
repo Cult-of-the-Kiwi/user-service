@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use axum_extra::either::Either::{self, E1, E2};
+use devcord_middlewares::middlewares::auth::Authenticated;
 
 use crate::{
     api_utils::{
@@ -13,7 +14,6 @@ use crate::{
         structs::{PrivateBlocked, PublicBlocked, RequestUserBlock, RequestUsersBlocked},
     },
     app::AppState,
-    jwt::Claims,
     sql_utils::calls::{
         delete_block, delete_friend_request, delete_friendship, get_private_block,
         get_private_friendship, get_private_user, get_public_blocks, get_public_user,
@@ -23,7 +23,7 @@ use crate::{
 
 pub async fn block_user(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(body): Json<RequestUserBlock>,
 ) -> impl IntoResponse {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {
@@ -75,7 +75,7 @@ pub async fn block_user(
 
 pub async fn unblock_user(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(body): Json<RequestUserBlock>,
 ) -> impl IntoResponse {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {
@@ -101,7 +101,7 @@ pub async fn unblock_user(
 
 pub async fn get_blocked(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Query(query): Query<RequestUsersBlocked>,
 ) -> Either<Json<Option<Vec<PublicBlocked>>>, impl IntoResponse> {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {

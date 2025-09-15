@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use axum_extra::either::Either::{self, E1, E2};
+use devcord_middlewares::middlewares::auth::Authenticated;
 
 use crate::{
     api_utils::{
@@ -16,13 +17,12 @@ use crate::{
         },
     },
     app::AppState,
-    jwt::Claims,
     sql_utils::calls::{get_private_user, get_public_user, update_user_username},
 };
 
 pub async fn update_profile(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(body): Json<RequestUpdateProfile>,
 ) -> impl IntoResponse {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {

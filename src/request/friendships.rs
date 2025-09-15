@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use axum_extra::either::Either::{self, E1, E2};
+use devcord_middlewares::middlewares::auth::Authenticated;
 use serde_json::to_vec;
 use topic_structs::{FriendRequestAnswered, FriendRequestCreated};
 
@@ -19,7 +20,6 @@ use crate::{
         },
     },
     app::AppState,
-    jwt::Claims,
     sql_utils::calls::{
         get_private_block, get_private_friend_request, get_private_user,
         get_public_friend_requests_received, get_public_friend_requests_sent,
@@ -30,7 +30,7 @@ use crate::{
 
 pub async fn request_friend(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(body): Json<RequestFriendRequest>,
 ) -> impl IntoResponse {
     let Some(from_user) = get_public_user(&claims.user_id, &state.db).await else {
@@ -85,7 +85,7 @@ pub async fn request_friend(
 
 pub async fn accept_friend(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(body): Json<RequestFriendRequest>,
 ) -> impl IntoResponse {
     let Some(_to_user) = get_public_user(&claims.user_id, &state.db).await else {
@@ -145,7 +145,7 @@ pub async fn accept_friend(
 
 pub async fn reject_friend(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(body): Json<RequestFriendRequest>,
 ) -> impl IntoResponse {
     let Some(_to_user) = get_public_user(&claims.user_id, &state.db).await else {
@@ -198,7 +198,7 @@ pub async fn reject_friend(
 
 pub async fn get_request_sent(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Query(query): Query<RequestFriendRequestSent>,
 ) -> Either<Json<Option<Vec<PublicFriendRequestSent>>>, impl IntoResponse> {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {
@@ -213,7 +213,7 @@ pub async fn get_request_sent(
 
 pub async fn get_request_received(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Query(query): Query<RequestFriendRequestRecieved>,
 ) -> Either<Json<Option<Vec<PublicFriendRequestReceived>>>, impl IntoResponse> {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {
@@ -228,7 +228,7 @@ pub async fn get_request_received(
 
 pub async fn get_friends(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Query(query): Query<RequestFriendships>,
 ) -> Either<Json<Option<Vec<PublicFriendship>>>, impl IntoResponse> {
     if get_public_user(&claims.user_id, &state.db).await.is_none() {
