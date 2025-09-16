@@ -5,237 +5,132 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
-use axum_extra::either::Either::{self, E1, E2};
 use devcord_middlewares::middlewares::auth::Authenticated;
-use serde_json::to_vec;
-use topic_structs::{FriendRequestAnswered, FriendRequestCreated};
+use sqlx::PgPool;
 
 use crate::{
-    api_utils::{
-        responses,
-        structs::{
-            FriendRequestState, PublicFriendRequestReceived, PublicFriendRequestSent,
-            PublicFriendship, RequestFriendRequest, RequestFriendRequestRecieved,
-            RequestFriendRequestSent, RequestFriendships,
-        },
-    },
+    api_utils::structs::{FriendRange, FriendRequest, FriendRequestRange},
     app::AppState,
     sql_utils::calls::{
-        get_private_block, get_private_friend_request, get_private_user,
-        get_public_friend_requests_received, get_public_friend_requests_sent,
-        get_public_friendships, get_public_user, insert_friend_request, insert_friendship,
-        update_friend_request_state,
+        get_friend_request, get_friend_requests_received, get_friend_requests_received_filtered,
+        get_friend_requests_sent, get_friend_requests_sent_filtered, get_user_block,
+        get_user_friend, insert_friend_request, update_friend_request,
     },
 };
 
 pub async fn request_friend(
     State(state): State<Arc<AppState>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Json(body): Json<RequestFriendRequest>,
+    Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
-    let Some(from_user) = get_public_user(&claims.user_id, &state.db).await else {
-        return responses::USER_DOES_NOT_EXIST;
-    };
-
-    let to_user = match get_private_user(&body.to_user_username, &state.db).await {
-        Some(e) => e,
-        None => return responses::USER_DOES_NOT_EXIST,
-    };
-
-    if get_private_block(&to_user.id, &claims.user_id, &state.db)
+    if get_user_friend(&claims.user_id, &request.to_user_id, &state.db)
         .await
         .is_some()
     {
-        return responses::USER_DOES_NOT_EXIST;
+        todo!("Is already friend error");
     }
 
-    if get_private_friend_request(&claims.user_id, &to_user.id, &state.db)
+    if get_user_block(&request.to_user_id, &claims.user_id, &state.db)
         .await
         .is_some()
     {
-        return responses::REQUEST_ALREADY_EXIST;
+        todo!("Error because block");
     }
 
-    if insert_friend_request(&claims.user_id, &to_user.id, &state.db)
+    request.from_user_id = claims.user_id;
+
+    insert_friend_request(&request, &state.db)
         .await
-        .is_err()
-    {
-        return responses::DB_ERROR;
-    }
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::AlreadyExists => todo!("Request already exists"),
+            devcord_sqlx_utils::error::Error::ForeignKeyViolation => {
+                todo!("Other user or user does not exist")
+            }
+            devcord_sqlx_utils::error::Error::CheckViolation => {
+                todo!("Internal error (We dont have checks on this")
+            }
+            devcord_sqlx_utils::error::Error::InternalError => todo!("Internal error"),
+            _ => todo!(),
+        });
 
-    let request = FriendRequestCreated {
-        from_username: from_user.username,
-    };
-
-    let Ok(request_bytes) = to_vec(&request) else {
-        return responses::FLUVIO_ERROR;
-    };
-
-    if state
-        .request_sent_producer
-        .send(to_user.id, request_bytes)
-        .await
-        .is_err()
-    {
-        return responses::FLUVIO_ERROR;
-    }
-
-    responses::REQUEST_CREATED
+    todo!("Add ok response")
 }
 
-pub async fn accept_friend(
+pub async fn accept_request(
     State(state): State<Arc<AppState>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Json(body): Json<RequestFriendRequest>,
+    Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
-    let Some(_to_user) = get_public_user(&claims.user_id, &state.db).await else {
-        return responses::USER_DOES_NOT_EXIST;
-    };
+    request.from_user_id = claims.user_id;
+    request.accept();
 
-    let from_user = match get_private_user(&body.to_user_username, &state.db).await {
-        Some(e) => e,
-        None => return responses::USER_DOES_NOT_EXIST,
-    };
-
-    let mut request =
-        match get_private_friend_request(&from_user.id, &claims.user_id, &state.db).await {
-            Some(e) => e,
-            None => return responses::REQUEST_DOES_NOT_EXIST,
-        };
-
-    if request.state != FriendRequestState::Pending.to_string() {
-        return responses::REQUEST_NOT_PENDING;
+    match update_request(&request, &state.db).await {
+        Ok(_) => todo!("Okay"),
+        Err(e) => return e,
     }
-
-    request.state = FriendRequestState::Accepted.to_string();
-    if update_friend_request_state(request, &state.db)
-        .await
-        .is_err()
-    {
-        return responses::DB_ERROR;
-    }
-
-    if insert_friendship(&from_user.id, &claims.user_id, &state.db)
-        .await
-        .is_err()
-    {
-        return responses::DB_ERROR;
-    }
-
-    let request = FriendRequestAnswered {
-        from_username: from_user.username,
-        accepted: true,
-    };
-
-    let Ok(request_bytes) = to_vec(&request) else {
-        return responses::FLUVIO_ERROR;
-    };
-
-    if state
-        .request_answered_producer
-        .send(from_user.id, request_bytes)
-        .await
-        .is_err()
-    {
-        return responses::FLUVIO_ERROR;
-    }
-
-    responses::REQUEST_ACCEPTED
 }
 
-pub async fn reject_friend(
+pub async fn reject_request(
     State(state): State<Arc<AppState>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Json(body): Json<RequestFriendRequest>,
+    Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
-    let Some(_to_user) = get_public_user(&claims.user_id, &state.db).await else {
-        return responses::USER_DOES_NOT_EXIST;
-    };
+    request.from_user_id = claims.user_id;
+    request.reject();
 
-    let from_user = match get_private_user(&body.to_user_username, &state.db).await {
-        Some(e) => e,
-        None => return responses::USER_DOES_NOT_EXIST,
-    };
-
-    let mut request =
-        match get_private_friend_request(&from_user.id, &claims.user_id, &state.db).await {
-            Some(e) => e,
-            None => return responses::REQUEST_DOES_NOT_EXIST,
-        };
-
-    if request.state != FriendRequestState::Pending.to_string() {
-        return responses::REQUEST_NOT_PENDING;
+    match update_request(&request, &state.db).await {
+        Ok(_) => todo!("Okay"),
+        Err(e) => return e,
     }
+}
 
-    request.state = FriendRequestState::Rejected.to_string();
-    if update_friend_request_state(request, &state.db)
+async fn update_request(request: &FriendRequest, db: &PgPool) -> Result<(), impl IntoResponse> {
+    update_friend_request(request, db)
         .await
-        .is_err()
-    {
-        return responses::DB_ERROR;
-    }
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::ForeignKeyViolation => {
+                todo!("Other user or user does not exist")
+            }
+            devcord_sqlx_utils::error::Error::RowNotFound => todo!("Request does not exist"),
+            _ => todo!("Internal server error"),
+        })?;
 
-    let request = FriendRequestAnswered {
-        from_username: from_user.username,
-        accepted: false,
+    Ok(())
+}
+
+async fn get_requests_sent(
+    State(state): State<Arc<AppState>>,
+    Authenticated { claims, jwt: _ }: Authenticated,
+    Query(range): Query<FriendRequestRange>,
+) -> impl IntoResponse {
+    todo!("Check request limits and stuff");
+
+    let requests = match range.state_filter.is_none() {
+        true => get_friend_requests_sent(&claims.user_id, &range, &state.db).await,
+        false => get_friend_requests_sent_filtered(&claims.user_id, &range, &state.db).await,
     };
 
-    let Ok(request_bytes) = to_vec(&request) else {
-        return responses::FLUVIO_ERROR;
+    todo!("Return requests");
+}
+
+async fn get_requests_received(
+    State(state): State<Arc<AppState>>,
+    Authenticated { claims, jwt: _ }: Authenticated,
+    Query(range): Query<FriendRequestRange>,
+) -> impl IntoResponse {
+    todo!("Check request limits and stuff");
+
+    let requests = match range.state_filter.is_none() {
+        true => get_friend_requests_received(&claims.user_id, &range, &state.db).await,
+        false => get_friend_requests_received_filtered(&claims.user_id, &range, &state.db).await,
     };
 
-    if state
-        .request_answered_producer
-        .send(from_user.id, request_bytes)
-        .await
-        .is_err()
-    {
-        return responses::FLUVIO_ERROR;
-    }
-
-    responses::REQUEST_REJECTED
+    todo!("Return requests");
 }
 
-pub async fn get_request_sent(
+async fn get_friends(
     State(state): State<Arc<AppState>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Query(query): Query<RequestFriendRequestSent>,
-) -> Either<Json<Option<Vec<PublicFriendRequestSent>>>, impl IntoResponse> {
-    if get_public_user(&claims.user_id, &state.db).await.is_none() {
-        return E2(responses::USER_DOES_NOT_EXIST);
-    }
-
-    let requests =
-        get_public_friend_requests_sent(&claims.user_id, query.from, query.to, &state.db).await;
-
-    E1(Json(requests))
-}
-
-pub async fn get_request_received(
-    State(state): State<Arc<AppState>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
-    Query(query): Query<RequestFriendRequestRecieved>,
-) -> Either<Json<Option<Vec<PublicFriendRequestReceived>>>, impl IntoResponse> {
-    if get_public_user(&claims.user_id, &state.db).await.is_none() {
-        return E2(responses::USER_DOES_NOT_EXIST);
-    }
-
-    let requests =
-        get_public_friend_requests_received(&claims.user_id, query.from, query.to, &state.db).await;
-
-    E1(Json(requests))
-}
-
-pub async fn get_friends(
-    State(state): State<Arc<AppState>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
-    Query(query): Query<RequestFriendships>,
-) -> Either<Json<Option<Vec<PublicFriendship>>>, impl IntoResponse> {
-    if get_public_user(&claims.user_id, &state.db).await.is_none() {
-        return E2(responses::USER_DOES_NOT_EXIST);
-    }
-
-    let requests = get_public_friendships(&claims.user_id, query.from, query.to, &state.db).await;
-
-    E1(Json(requests))
+    Query(range): Query<FriendRange>,
+) -> impl IntoResponse {
 }

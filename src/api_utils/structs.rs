@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -6,124 +6,20 @@ use sqlx::prelude::FromRow;
 
 use crate::api_utils::types::{UserID, UserUsername};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
-pub enum RequestUpdateProfileEnum {
-    Username,
-}
-
 #[derive(FromRow, Debug, Default, Deserialize, Serialize)]
-pub struct RequestUpdateProfile {
-    pub query: HashMap<RequestUpdateProfileEnum, String>,
+pub(crate) struct User {
+    username: UserUsername,
+    id: UserID,
+    created_at: Option<DateTime<Utc>>,
 }
 
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
-pub struct RequestUserProfile {
-    pub user_username: UserUsername,
-}
-
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
-pub struct PrivateUser {
-    pub id: UserID,
-    pub username: UserUsername,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
-pub struct PublicUser {
-    pub username: UserUsername,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, sqlx::Type)]
+#[sqlx(type_name = "friend_request_state", rename_all = "lowercase")]
 pub enum FriendRequestState {
     #[default]
     Pending,
     Accepted,
     Rejected,
-}
-
-#[derive(FromRow, Debug, Default, Serialize, Deserialize)]
-pub struct PrivateFriendRequest {
-    pub from_user_id: UserID,
-    pub to_user_id: UserID,
-    pub state: String,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(FromRow, Debug, Default, Serialize, Deserialize)]
-pub struct PublicFriendRequestSent {
-    #[sqlx(rename = "username")]
-    pub to_user_username: UserUsername,
-    pub state: String,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(FromRow, Debug, Default, Serialize, Deserialize)]
-pub struct PublicFriendRequestReceived {
-    #[sqlx(rename = "username")]
-    pub from_user_username: UserUsername,
-    pub state: String,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RequestFriendRequestRecieved {
-    pub from: i64,
-    pub to: i64,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RequestFriendRequestSent {
-    pub from: i64,
-    pub to: i64,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RequestFriendRequest {
-    pub to_user_username: UserUsername,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RequestUsersBlocked {
-    pub from: i64,
-    pub to: i64,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RequestUserBlock {
-    pub to_user_username: UserUsername,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct RequestFriendships {
-    pub from: i64,
-    pub to: i64,
-}
-
-#[derive(FromRow, Debug, Default, Serialize, Deserialize)]
-pub struct PrivateFriendship {
-    pub from_user_id: UserID,
-    pub to_user_id: UserID,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(FromRow, Debug, Default, Serialize, Deserialize)]
-pub struct PublicFriendship {
-    pub username: UserUsername,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
-pub struct PrivateBlocked {
-    pub from_user_id: UserID,
-    pub to_user_id: UserID,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
-pub struct PublicBlocked {
-    pub username: UserUsername,
-    pub created_at: Option<String>,
 }
 
 impl From<&str> for FriendRequestState {
@@ -145,4 +41,44 @@ impl Display for FriendRequestState {
             FriendRequestState::Rejected => write!(f, "rejected"),
         }
     }
+}
+
+#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
+pub(crate) struct FriendRequest {
+    #[serde(skip_deserializing)]
+    #[sqlx(rename = "from_user_id")]
+    pub from_user_id: UserID,
+    #[serde(rename = "user_id")]
+    #[sqlx(rename = "to_user_id")]
+    pub to_user_id: UserID,
+    #[serde(skip_deserializing)]
+    pub created_at: Option<DateTime<Utc>>,
+    #[serde(skip_deserializing)]
+    pub state: FriendRequestState,
+}
+
+impl FriendRequest {
+    pub fn accept(&mut self) {
+        self.state = FriendRequestState::Accepted;
+    }
+
+    pub fn reject(&mut self) {
+        self.state = FriendRequestState::Rejected;
+    }
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub(crate) struct FriendRequestRange {
+    pub from: i32,
+    pub to: i32,
+    #[serde(default, rename = "filter")]
+    pub state_filter: Option<FriendRequestState>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub(crate) struct FriendRange {
+    pub from: i32,
+    pub to: i32,
+    #[serde(default, rename = "filter")]
+    pub starts_with: Option<String>,
 }

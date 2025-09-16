@@ -728,6 +728,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "devcord_sqlx_utils"
+version = "0.1.0"
+source = "git+https://github.com/Cult-of-the-Kiwi/devcord_sqlx_utils#135209b724719661d579bcaf58ead21c858fabb0"
+dependencies = [
+ "sqlx",
+ "thiserror",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1779,12 +1788,13 @@ checksum = "964de6e86d545b246d84badc0fef527924ace5134f30641c203ef52ba83f58d5"
 
 [[package]]
 name = "indexmap"
-version = "2.11.1"
+version = "2.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "206a8042aec68fa4a62e8d3f7aa4ceb508177d9324faf261e1959e495b7a1921"
+checksum = "24855426e2ca0eb0c416e7e1f548b11f7547805faeed2a3d3e961286b51f7d53"
 dependencies = [
  "equivalent",
  "hashbrown",
+ "serde",
 ]
 
 [[package]]
@@ -3634,12 +3644,14 @@ dependencies = [
  "axum-extra",
  "chrono",
  "devcord_middlewares",
+ "devcord_sqlx_utils",
  "dotenvy",
  "fluvio",
  "jsonwebtoken",
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror",
  "tokio",
  "topic_structs",
  "tower",
