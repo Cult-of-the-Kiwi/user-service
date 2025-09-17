@@ -1,8 +1,8 @@
 use devcord_sqlx_utils::error::Error;
-use sqlx::PgPool;
+use sqlx::{PgPool, QueryBuilder};
 
 use crate::api_utils::{
-    structs::{FriendRange, FriendRequest, FriendRequestRange, User},
+    structs::{FriendRange, FriendRequest, FriendRequestDirection, FriendRequestRange, User},
     types::UserID,
 };
 
@@ -73,111 +73,81 @@ pub async fn get_friend_request(request: &FriendRequest, db: &PgPool) -> Option<
     .ok()
 }
 
-pub async fn get_friend_requests_sent(
+pub async fn get_friend_requests(
     user_id: &UserID,
     range: &FriendRequestRange,
+    direction: &FriendRequestDirection,
     db: &PgPool,
 ) -> Option<Vec<FriendRequest>> {
-    let mut query = String::from(
+    let mut qb = QueryBuilder::new(
         "
         SELECT from_user_id, to_user_id, created_at, state
         FROM friend_requests
-        WHERE from_user_id = $1
+        WHERE 
     ",
     );
 
-    if range.state_filter.is_some() {
-        query.push_str(" AND state = $4");
-    }
+    match direction {
+        FriendRequestDirection::Sent => qb.push("from_user_id = "),
+        FriendRequestDirection::Received => qb.push("to_user_id = "),
+    };
 
-    query.push_str(
-        "
-        ORDER BY created_at DESC
-        OFFSET $2
-        Limit $3
-    ",
-    );
-    let mut q = sqlx::query_as(&query)
-        .bind(user_id)
-        .bind(&range.from)
-        .bind((&range.to - &range.from).max(0));
+    qb.push_bind(user_id);
 
     if let Some(filter) = &range.state_filter {
-        q = q.bind(filter);
+        qb.push(" AND state = ").push_bind(format!("{}%", filter));
     }
 
-    q.fetch_all(db).await.ok()
+    qb.push(
+        " 
+        ORDER BY created_at DESC
+        OFFSET 
+    ",
+    )
+    .push_bind(range.from)
+    .push(" LIMIT ")
+    .push_bind((range.to - range.from).max(0))
+    .build_query_as()
+    .fetch_all(db)
+    .await
+    .ok()
 }
 
-pub async fn get_friend_requests_received(
+pub async fn get_user_friends(
     user_id: &UserID,
-    range: &FriendRequestRange,
+    range: &FriendRange,
     db: &PgPool,
-) -> Option<Vec<FriendRequest>> {
-    let mut query = String::from(
-        "
-        SELECT from_user_id, to_user_id, created_at, state
-        FROM friend_requests
-        WHERE to_user_id = $1
-    ",
-    );
-
-    if range.state_filter.is_some() {
-        query.push_str(" AND state = $4");
-    }
-
-    query.push_str(
-        "
-        ORDER BY created_at DESC
-        OFFSET $2
-        Limit $3
-    ",
-    );
-    let mut q = sqlx::query_as(&query)
-        .bind(user_id)
-        .bind(&range.from)
-        .bind((&range.to - &range.from).max(0));
-
-    if let Some(filter) = &range.state_filter {
-        q = q.bind(filter);
-    }
-
-    q.fetch_all(db).await.ok()
-}
-
-pub async fn get_friends(user_id: &UserID, range: &FriendRange, db: &PgPool) -> Option<Vec<User>> {
-    let mut query = String::from(
+) -> Option<Vec<User>> {
+    let mut qb = QueryBuilder::new(
         "
         SELECT id, username, created_at
         FROM users u
         JOIN friendships f
         ON f.to_user_id = u.id
-        WHERE f.from_user_id = $1
+        WHERE f.from_user_id = 
     ",
     );
 
-    if range.starts_with.is_some() {
-        query.push_str(" AND u.username ILIKE $4");
-    }
-
-    query.push_str(
-        "
-        ORDER BY f.created_at DESC
-        OFFSET $2
-        Limit $3
-    ",
-    );
-
-    let mut q = sqlx::query_as(&query)
-        .bind(user_id)
-        .bind(&range.from)
-        .bind((&range.to - &range.from).max(0));
+    qb.push_bind(user_id);
 
     if let Some(filter) = &range.starts_with {
-        q = q.bind(filter);
+        qb.push(" AND u.username ILIKE ")
+            .push_bind(format!("{}%", filter));
     }
 
-    q.fetch_all(db).await.ok()
+    qb.push(
+        "
+        ORDER BY f.created_at DESC
+        OFFSET
+    ",
+    )
+    .push_bind(range.from)
+    .push(" LIMIT ")
+    .push_bind((range.to - range.from).max(0))
+    .build_query_as()
+    .fetch_all(db)
+    .await
+    .ok()
 }
 
 //--------------------INSERTS--------------------

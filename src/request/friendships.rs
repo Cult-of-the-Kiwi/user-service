@@ -9,12 +9,11 @@ use devcord_middlewares::middlewares::auth::Authenticated;
 use sqlx::PgPool;
 
 use crate::{
-    api_utils::structs::{FriendRange, FriendRequest, FriendRequestRange},
+    api_utils::structs::{FriendRange, FriendRequest, FriendRequestDirection, FriendRequestRange},
     app::AppState,
     sql_utils::calls::{
-        get_friend_request, get_friend_requests_received, get_friend_requests_received_filtered,
-        get_friend_requests_sent, get_friend_requests_sent_filtered, get_user_block,
-        get_user_friend, insert_friend_request, update_friend_request,
+        get_friend_requests, get_user_block, get_user_friend, get_user_friends,
+        insert_friend_request, insert_friendship, update_friend_request,
     },
 };
 
@@ -67,6 +66,11 @@ pub async fn accept_request(
     match update_request(&request, &state.db).await {
         Ok(_) => todo!("Okay"),
         Err(e) => return e,
+    };
+
+    match insert_friendship(&claims.user_id, &request.to_user_id, &state.db).await {
+        Ok(_) => todo!("Return ok"),
+        Err(_) => todo!(),
     }
 }
 
@@ -82,6 +86,8 @@ pub async fn reject_request(
         Ok(_) => todo!("Okay"),
         Err(e) => return e,
     }
+
+    match insert_friendship(&claims.user_id, request.to_user_id, state.db).await {}
 }
 
 async fn update_request(request: &FriendRequest, db: &PgPool) -> Result<(), impl IntoResponse> {
@@ -105,10 +111,13 @@ async fn get_requests_sent(
 ) -> impl IntoResponse {
     todo!("Check request limits and stuff");
 
-    let requests = match range.state_filter.is_none() {
-        true => get_friend_requests_sent(&claims.user_id, &range, &state.db).await,
-        false => get_friend_requests_sent_filtered(&claims.user_id, &range, &state.db).await,
-    };
+    let requests = get_friend_requests(
+        &claims.user_id,
+        &range,
+        &FriendRequestDirection::Sent,
+        &state.db,
+    )
+    .await;
 
     todo!("Return requests");
 }
@@ -120,10 +129,13 @@ async fn get_requests_received(
 ) -> impl IntoResponse {
     todo!("Check request limits and stuff");
 
-    let requests = match range.state_filter.is_none() {
-        true => get_friend_requests_received(&claims.user_id, &range, &state.db).await,
-        false => get_friend_requests_received_filtered(&claims.user_id, &range, &state.db).await,
-    };
+    let requests = get_friend_requests(
+        &claims.user_id,
+        &range,
+        &FriendRequestDirection::Received,
+        &state.db,
+    )
+    .await;
 
     todo!("Return requests");
 }
@@ -133,4 +145,7 @@ async fn get_friends(
     Authenticated { claims, jwt: _ }: Authenticated,
     Query(range): Query<FriendRange>,
 ) -> impl IntoResponse {
+    let friends = get_user_friends(&claims.user_id, &range, &state.db).await;
+
+    todo!("Return values")
 }

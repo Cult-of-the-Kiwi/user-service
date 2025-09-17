@@ -75,6 +75,11 @@ pub(crate) struct FriendRequestRange {
     pub state_filter: Option<FriendRequestState>,
 }
 
+pub(crate) enum FriendRequestDirection {
+    Sent,
+    Received,
+}
+
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub(crate) struct FriendRange {
     pub from: i32,
