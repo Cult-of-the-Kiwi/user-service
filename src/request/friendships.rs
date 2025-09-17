@@ -9,12 +9,9 @@ use devcord_middlewares::middlewares::auth::Authenticated;
 use sqlx::PgPool;
 
 use crate::{
-    api_utils::structs::{FriendRange, FriendRequest, FriendRequestDirection, FriendRequestRange},
+    api_utils::structs::{FriendRequest, FriendRequestDirection, FriendRequestRange, Range},
     app::AppState,
-    sql_utils::calls::{
-        get_friend_requests, get_user_block, get_user_friend, get_user_friends,
-        insert_friend_request, insert_friendship, update_friend_request,
-    },
+    sql_utils::calls::UserRepository,
 };
 
 pub async fn request_friend(
@@ -22,14 +19,18 @@ pub async fn request_friend(
     Authenticated { claims, jwt: _ }: Authenticated,
     Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
-    if get_user_friend(&claims.user_id, &request.to_user_id, &state.db)
+    if state
+        .db
+        .get_user_friend(&claims.user_id, &request.to_user_id)
         .await
         .is_some()
     {
         todo!("Is already friend error");
     }
 
-    if get_user_block(&request.to_user_id, &claims.user_id, &state.db)
+    if state
+        .db
+        .get_user_block(&request.to_user_id, &claims.user_id)
         .await
         .is_some()
     {
@@ -38,7 +39,9 @@ pub async fn request_friend(
 
     request.from_user_id = claims.user_id;
 
-    insert_friend_request(&request, &state.db)
+    state
+        .db
+        .insert_friend_request(&request)
         .await
         .map_err(|e| match e {
             devcord_sqlx_utils::error::Error::AlreadyExists => todo!("Request already exists"),
@@ -68,7 +71,11 @@ pub async fn accept_request(
         Err(e) => return e,
     };
 
-    match insert_friendship(&claims.user_id, &request.to_user_id, &state.db).await {
+    match state
+        .db
+        .insert_friendship(&claims.user_id, &request.to_user_id)
+        .await
+    {
         Ok(_) => todo!("Return ok"),
         Err(_) => todo!(),
     }
@@ -87,11 +94,14 @@ pub async fn reject_request(
         Err(e) => return e,
     }
 
-    match insert_friendship(&claims.user_id, request.to_user_id, state.db).await {}
+    match state
+        .db
+        .insert_friendship(&claims.user_id, request.to_user_id)
+        .await {}
 }
 
 async fn update_request(request: &FriendRequest, db: &PgPool) -> Result<(), impl IntoResponse> {
-    update_friend_request(request, db)
+    db.update_friend_request(request)
         .await
         .map_err(|e| match e {
             devcord_sqlx_utils::error::Error::ForeignKeyViolation => {
@@ -111,13 +121,10 @@ async fn get_requests_sent(
 ) -> impl IntoResponse {
     todo!("Check request limits and stuff");
 
-    let requests = get_friend_requests(
-        &claims.user_id,
-        &range,
-        &FriendRequestDirection::Sent,
-        &state.db,
-    )
-    .await;
+    let requests = state
+        .db
+        .get_friend_requests(&claims.user_id, &range, &FriendRequestDirection::Sent)
+        .await;
 
     todo!("Return requests");
 }
@@ -125,17 +132,14 @@ async fn get_requests_sent(
 async fn get_requests_received(
     State(state): State<Arc<AppState>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Query(range): Query<FriendRequestRange>,
+    Query(range): Query<Range>,
 ) -> impl IntoResponse {
     todo!("Check request limits and stuff");
 
-    let requests = get_friend_requests(
-        &claims.user_id,
-        &range,
-        &FriendRequestDirection::Received,
-        &state.db,
-    )
-    .await;
+    let requests = state
+        .db
+        .get_friend_requests(&claims.user_id, &range, &FriendRequestDirection::Received)
+        .await;
 
     todo!("Return requests");
 }
@@ -143,9 +147,9 @@ async fn get_requests_received(
 async fn get_friends(
     State(state): State<Arc<AppState>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Query(range): Query<FriendRange>,
+    Query(range): Query<Range>,
 ) -> impl IntoResponse {
-    let friends = get_user_friends(&claims.user_id, &range, &state.db).await;
+    let friends = state.db.get_user_friends(&claims.user_id, &range).await;
 
     todo!("Return values")
 }

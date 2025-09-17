@@ -45,11 +45,9 @@ impl Display for FriendRequestState {
 
 #[derive(FromRow, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct FriendRequest {
-    #[serde(skip_deserializing)]
-    #[sqlx(rename = "from_user_id")]
+    #[serde(skip_deserializing, rename(serialize = "sender_id"))]
     pub from_user_id: UserID,
-    #[serde(rename = "user_id")]
-    #[sqlx(rename = "to_user_id")]
+    #[serde(rename(deserialize = "user_id", serialize = "recipient_id"))]
     pub to_user_id: UserID,
     #[serde(skip_deserializing)]
     pub created_at: Option<DateTime<Utc>>,
@@ -80,10 +78,34 @@ pub(crate) enum FriendRequestDirection {
     Received,
 }
 
+#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
+pub(crate) struct Friendship {
+    #[serde(skip_deserializing, rename = "sender_id")]
+    pub from_user_id: UserID,
+    #[serde(rename(deserialize = "user_id", serialize = "recipient_id"))]
+    pub to_user_id: UserID,
+    #[serde(skip_deserializing)]
+    pub created_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Default, Deserialize, Serialize)]
-pub(crate) struct FriendRange {
+pub(crate) struct Range {
     pub from: i32,
     pub to: i32,
-    #[serde(default, rename = "filter")]
-    pub starts_with: Option<String>,
+}
+
+#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
+pub(crate) struct Block {
+    #[serde(skip_deserializing, rename = "sender_id")]
+    pub from_user_id: UserID,
+    #[serde(rename(deserialize = "user_id", serialize = "recipient_id"))]
+    pub to_user_id: UserID,
+    #[serde(skip_deserializing)]
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub(crate) struct UpdateUser {
+    #[serde(default)]
+    username: Option<UserUsername>,
 }
