@@ -13,6 +13,12 @@ pub(crate) struct User {
     pub created_at: Option<DateTime<Utc>>,
 }
 
+impl PartialEq for User {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 #[derive(Debug, Default, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(type_name = "friend_request_state", rename_all = "lowercase")]
 pub enum FriendRequestState {

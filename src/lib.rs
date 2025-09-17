@@ -3,3 +3,5 @@ pub mod app;
 pub(crate) mod fluvio_consumer;
 pub(crate) mod request;
 pub(crate) mod sql_utils;
+#[cfg(test)]
+pub(crate) mod tests;

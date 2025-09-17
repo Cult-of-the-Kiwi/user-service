@@ -24,3 +24,4 @@ chrono = {version = "0.4.41", features = ["serde"] }
 devcord_middlewares= {git = "https://github.com/Cult-of-the-Kiwi/devcord_middlewares"}
 devcord_sqlx_utils= {git = "https://github.com/Cult-of-the-Kiwi/devcord_sqlx_utils"}
 thiserror = "2.0.16"
+testcontainers = {version = "0.25.0", features = ["blocking"] }

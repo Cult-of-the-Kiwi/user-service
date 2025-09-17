@@ -47,7 +47,7 @@ pub async fn init(db: &sqlx::PgPool) -> anyhow::Result<()> {
 
     sqlx::query(
         "
-        CREATE TYPE IF NOT EXISTS friend_request_state AS ENUM (
+        CREATE TYPE friend_request_state AS ENUM (
             'pending',
             'accepted',
             'rejected'
