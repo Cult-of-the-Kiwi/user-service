@@ -5,17 +5,25 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
+use axum_extra::either::Either::{self, E1, E2};
 use devcord_middlewares::middlewares::auth::Authenticated;
 use sqlx::PgPool;
 
 use crate::{
-    api_utils::structs::{FriendRequest, FriendRequestDirection, FriendRequestRange, Range},
+    api_utils::{
+        responses::{
+            ALREADY_FRIEND, ApiResponse, ApiResponseMessage, INTERNAL_SERVER_ERROR, OK,
+            RANGE_TOO_LARGE, REQUEST_ALREADY_EXIST, REQUEST_DOES_NOT_EXIST, USER_DOES_NOT_EXIST,
+        },
+        structs::{FriendRequest, FriendRequestDirection, FriendRequestRange, Range},
+    },
     app::AppState,
     sql_utils::calls::UserRepository,
 };
 
-pub async fn request_friend(
-    State(state): State<Arc<AppState>>,
+//FIXME! (Lamoara) change this and bellow fn for less repeated code
+pub async fn request_friend<T: UserRepository>(
+    State(state): State<Arc<AppState<T>>>,
     Authenticated { claims, jwt: _ }: Authenticated,
     Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
@@ -25,7 +33,7 @@ pub async fn request_friend(
         .await
         .is_some()
     {
-        todo!("Is already friend error");
+        return ALREADY_FRIEND;
     }
 
     if state
@@ -34,40 +42,33 @@ pub async fn request_friend(
         .await
         .is_some()
     {
-        todo!("Error because block");
+        return USER_DOES_NOT_EXIST;
     }
 
     request.from_user_id = claims.user_id;
 
-    state
-        .db
-        .insert_friend_request(&request)
-        .await
-        .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::AlreadyExists => todo!("Request already exists"),
+    match state.db.insert_friend_request(&request).await {
+        Ok(_) => OK,
+        Err(e) => match e {
+            devcord_sqlx_utils::error::Error::AlreadyExists => REQUEST_ALREADY_EXIST,
             devcord_sqlx_utils::error::Error::ForeignKeyViolation => {
-                todo!("Other user or user does not exist")
+                return USER_DOES_NOT_EXIST;
             }
-            devcord_sqlx_utils::error::Error::CheckViolation => {
-                todo!("Internal error (We dont have checks on this")
-            }
-            devcord_sqlx_utils::error::Error::InternalError => todo!("Internal error"),
-            _ => todo!(),
-        });
-
-    todo!("Add ok response")
+            _ => INTERNAL_SERVER_ERROR,
+        },
+    }
 }
 
-pub async fn accept_request(
-    State(state): State<Arc<AppState>>,
+pub async fn accept_request<T: UserRepository>(
+    State(state): State<Arc<AppState<T>>>,
     Authenticated { claims, jwt: _ }: Authenticated,
     Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
-    request.from_user_id = claims.user_id;
+    request.from_user_id = claims.user_id.clone();
     request.accept();
 
     match update_request(&request, &state.db).await {
-        Ok(_) => todo!("Okay"),
+        Ok(_) => (),
         Err(e) => return e,
     };
 
@@ -76,80 +77,95 @@ pub async fn accept_request(
         .insert_friendship(&claims.user_id, &request.to_user_id)
         .await
     {
-        Ok(_) => todo!("Return ok"),
-        Err(_) => todo!(),
+        Ok(_) => OK,
+        Err(e) => match e {
+            devcord_sqlx_utils::error::Error::AlreadyExists => ALREADY_FRIEND,
+            _ => INTERNAL_SERVER_ERROR,
+        },
     }
 }
 
-pub async fn reject_request(
-    State(state): State<Arc<AppState>>,
+pub async fn reject_request<T: UserRepository>(
+    State(state): State<Arc<AppState<T>>>,
     Authenticated { claims, jwt: _ }: Authenticated,
     Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
-    request.from_user_id = claims.user_id;
+    request.from_user_id = claims.user_id.clone();
     request.reject();
 
     match update_request(&request, &state.db).await {
-        Ok(_) => todo!("Okay"),
+        Ok(_) => (),
         Err(e) => return e,
-    }
+    };
 
     match state
         .db
-        .insert_friendship(&claims.user_id, request.to_user_id)
-        .await {}
+        .insert_friendship(&claims.user_id, &request.to_user_id)
+        .await
+    {
+        Ok(_) => OK,
+        Err(e) => match e {
+            devcord_sqlx_utils::error::Error::AlreadyExists => ALREADY_FRIEND,
+            _ => INTERNAL_SERVER_ERROR,
+        },
+    }
 }
 
-async fn update_request(request: &FriendRequest, db: &PgPool) -> Result<(), impl IntoResponse> {
+pub async fn update_request<T: UserRepository>(
+    request: &FriendRequest,
+    db: &T,
+) -> Result<(), ApiResponse<ApiResponseMessage>> {
     db.update_friend_request(request)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::ForeignKeyViolation => {
-                todo!("Other user or user does not exist")
-            }
-            devcord_sqlx_utils::error::Error::RowNotFound => todo!("Request does not exist"),
-            _ => todo!("Internal server error"),
+            devcord_sqlx_utils::error::Error::ForeignKeyViolation => USER_DOES_NOT_EXIST,
+            devcord_sqlx_utils::error::Error::RowNotFound => REQUEST_DOES_NOT_EXIST,
+            _ => INTERNAL_SERVER_ERROR,
         })?;
 
     Ok(())
 }
 
-async fn get_requests_sent(
-    State(state): State<Arc<AppState>>,
+pub async fn get_requests_sent<T: UserRepository>(
+    State(state): State<Arc<AppState<T>>>,
     Authenticated { claims, jwt: _ }: Authenticated,
     Query(range): Query<FriendRequestRange>,
-) -> impl IntoResponse {
-    todo!("Check request limits and stuff");
+) -> Either<Json<Option<Vec<FriendRequest>>>, impl IntoResponse> {
+    //FIXME! (Lamoara) Make range limit env or something
+    if (range.to - range.from) > 10 {
+        return E2(RANGE_TOO_LARGE);
+    }
 
     let requests = state
         .db
         .get_friend_requests(&claims.user_id, &range, &FriendRequestDirection::Sent)
         .await;
 
-    todo!("Return requests");
+    E1(Json(requests))
 }
 
-async fn get_requests_received(
-    State(state): State<Arc<AppState>>,
+pub async fn get_requests_received<T: UserRepository>(
+    State(state): State<Arc<AppState<T>>>,
     Authenticated { claims, jwt: _ }: Authenticated,
-    Query(range): Query<Range>,
-) -> impl IntoResponse {
-    todo!("Check request limits and stuff");
+    Query(range): Query<FriendRequestRange>,
+) -> Either<Json<Option<Vec<FriendRequest>>>, impl IntoResponse> {
+    //FIXME! (Lamoara) Make range limit env or something
+    if (range.to - range.from) > 10 {
+        return E2(RANGE_TOO_LARGE);
+    }
 
     let requests = state
         .db
         .get_friend_requests(&claims.user_id, &range, &FriendRequestDirection::Received)
         .await;
 
-    todo!("Return requests");
+    E1(Json(requests))
 }
 
-async fn get_friends(
-    State(state): State<Arc<AppState>>,
+pub async fn get_friends<T: UserRepository>(
+    State(state): State<Arc<AppState<T>>>,
     Authenticated { claims, jwt: _ }: Authenticated,
     Query(range): Query<Range>,
 ) -> impl IntoResponse {
-    let friends = state.db.get_user_friends(&claims.user_id, &range).await;
-
-    todo!("Return values")
+    Json(state.db.get_user_friends(&claims.user_id, &range).await)
 }

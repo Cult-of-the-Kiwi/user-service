@@ -114,7 +114,7 @@ impl UserRepository for Pool<Postgres> {
         WHERE f.from_user_id = $1
         ORDER BY f.created_at DESC
         OFFSET $2
-        LIMIT $1
+        LIMIT $3
     ",
         )
         .bind(user_id)
@@ -143,6 +143,29 @@ impl UserRepository for Pool<Postgres> {
         .bind(user_id)
         .bind(blocked_id)
         .fetch_one(self)
+        .await
+        .ok()
+    }
+
+    async fn get_user_blocks(
+        &self,
+        user_id: &crate::api_utils::types::UserID,
+        range: &crate::api_utils::structs::Range,
+    ) -> Option<Vec<crate::api_utils::structs::Block>> {
+        sqlx::query_as(
+            "
+            SELECT from_user_id, to_user_id, created_at
+            FROM blocks
+            WHERE from_user_id = $1
+            ORDER BY created_at DESC
+            OFFSET $2
+            LIMIT $1
+        ",
+        )
+        .bind(user_id)
+        .bind(range.from)
+        .bind((range.to - range.from).max(0))
+        .fetch_all(self)
         .await
         .ok()
     }
@@ -205,6 +228,27 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
+    async fn insert_user(
+        &self,
+        user: &crate::api_utils::structs::User,
+    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+        sqlx::query(
+            "
+            INSERT
+            INTO users (username, id)
+            VALUES ($1, $2)
+        ",
+        )
+        .bind(&user.username)
+        .bind(&user.id)
+        .execute(self)
+        .await?;
+
+        //FIXME!(Lamoara) make it so the created_at is inserted if is some
+
+        Ok(())
+    }
+
     async fn update_friend_request(
         &self,
         request: &crate::api_utils::structs::FriendRequest,
@@ -225,53 +269,103 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn get_user_blocks(
-        &self,
-        user_id: &crate::api_utils::types::UserID,
-        range: &crate::api_utils::structs::Range,
-    ) -> Option<Vec<crate::api_utils::structs::Block>> {
-        todo!()
-    }
-
-    async fn insert_user(
-        &self,
-        user: &crate::api_utils::structs::User,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
-        todo!()
-    }
-
     async fn update_user(
         &self,
-        request: &crate::api_utils::structs::UpdateUser,
+        update: &crate::api_utils::structs::UpdateUser,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
-        todo!()
+        if update.is_empty() {
+            return Ok(());
+        }
+
+        let mut qb = QueryBuilder::new(
+            "
+            UPDATE users
+            SET
+        ",
+        );
+
+        if let Some(username) = &update.username {
+            qb.push(" username = ").push_bind(username);
+        }
+
+        qb.build().execute(self).await?;
+
+        Ok(())
     }
 
     async fn delete_block(
         &self,
-        request: &crate::api_utils::structs::Block,
+        block: &crate::api_utils::structs::Block,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
-        todo!()
+        sqlx::query(
+            "
+            DELETE
+            FROM blocks
+            WHERE from_user_id = $1, to_user_id = $2
+        ",
+        )
+        .bind(&block.from_user_id)
+        .bind(&block.to_user_id)
+        .execute(self)
+        .await?;
+
+        Ok(())
     }
 
     async fn delete_friendship(
         &self,
         friendship: &crate::api_utils::structs::Friendship,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
-        todo!()
+        sqlx::query(
+            "
+            DELETE
+            FROM friendships
+            WHERE (from_user_id = $1 AND to_user_id = $2) OR (from_user_id = $2 AND to_user_id = $1)
+        ",
+        )
+        .bind(&friendship.from_user_id)
+        .bind(&friendship.to_user_id)
+        .execute(self)
+        .await?;
+
+        Ok(())
     }
 
     async fn delete_friend_request(
         &self,
         request: &crate::api_utils::structs::FriendRequest,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
-        todo!()
+        sqlx::query(
+            "
+            DELETE
+            FROM friend_requests
+            WHERE from_user_id = $1 AND to_user_id = $2 AND state = $3
+        ",
+        )
+        .bind(&request.from_user_id)
+        .bind(&request.to_user_id)
+        .bind(&request.state)
+        .execute(self)
+        .await?;
+
+        Ok(())
     }
 
     async fn delete_user(
         &self,
         user: &crate::api_utils::structs::User,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
-        todo!()
+        sqlx::query(
+            "
+            DELETE
+            FROM users
+            WHERE user_id = $1
+        ",
+        )
+        .bind(&user.id)
+        .execute(self)
+        .await?;
+
+        Ok(())
     }
 }

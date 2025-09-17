@@ -8,9 +8,9 @@ use crate::api_utils::types::{UserID, UserUsername};
 
 #[derive(FromRow, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct User {
-    username: UserUsername,
-    id: UserID,
-    created_at: Option<DateTime<Utc>>,
+    pub username: UserUsername,
+    pub id: UserID,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, sqlx::Type)]
@@ -107,5 +107,11 @@ pub(crate) struct Block {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub(crate) struct UpdateUser {
     #[serde(default)]
-    username: Option<UserUsername>,
+    pub username: Option<UserUsername>,
+}
+
+impl UpdateUser {
+    pub fn is_empty(&self) -> bool {
+        self.username.is_none()
+    }
 }

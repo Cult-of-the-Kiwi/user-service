@@ -15,19 +15,19 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 use crate::{
     fluvio_consumer,
     request::{
-        block::{block_user, get_blocked, unblock_user},
+        block::{block, get_blocks, unblock},
         friendships::{
-            accept_friend, get_friends, get_request_received, get_request_sent, reject_friend,
+            accept_request, get_friends, get_requests_received, get_requests_sent, reject_request,
             request_friend,
         },
-        user::{get_user_info, update_profile},
+        user::{get_user, update},
     },
-    sql_utils::init::init,
+    sql_utils::{calls::UserRepository, init::init},
 };
 
 #[derive(Clone)]
-pub struct AppState {
-    pub db: sqlx::PgPool,
+pub(crate) struct AppState<T: UserRepository> {
+    pub db: T,
     pub request_sent_producer: TopicProducer<SpuSocketPool>,
     pub request_answered_producer: TopicProducer<SpuSocketPool>,
 }
@@ -145,22 +145,22 @@ pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
 
     let friendships_router = Router::new()
         .route("/request", post(request_friend))
-        .route("/accept", post(accept_friend))
-        .route("/reject", post(reject_friend))
-        .route("/sent", get(get_request_sent))
-        .route("/received", get(get_request_received))
+        .route("/accept", post(accept_request))
+        .route("/reject", post(reject_request))
+        .route("/sent", get(get_requests_sent))
+        .route("/received", get(get_requests_received))
         .route("/friends", get(get_friends));
 
     let block_router = Router::new()
-        .route("/block", post(block_user))
-        .route("/unblock", post(unblock_user))
-        .route("/", get(get_blocked));
+        .route("/block", post(block))
+        .route("/unblock", post(unblock))
+        .route("/", get(get_blocks));
 
     let app = Router::new()
         .nest("/friendship", friendships_router)
         .nest("/blocks", block_router)
-        .route("/update", post(update_profile))
-        .route("/", get(get_user_info))
+        .route("/update", post(update))
+        .route("/", get(get_user))
         .route(
             "/health",
             get(|| async { "Long life to the allmighty turbofish" }),

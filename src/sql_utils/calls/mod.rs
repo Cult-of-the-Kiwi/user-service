@@ -10,7 +10,7 @@ use crate::api_utils::{
     types::UserID,
 };
 
-pub trait UserRepository {
+pub(crate) trait UserRepository {
     //Getters
     async fn get_user(&self, user_id: &UserID) -> Option<User>;
     async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Option<User>;

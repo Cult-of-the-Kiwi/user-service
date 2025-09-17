@@ -4,12 +4,9 @@ use fluvio::{Fluvio, Offset, consumer::ConsumerConfigExtBuilder};
 use serde_json::from_slice;
 use topic_structs::UserCreated;
 
-use crate::{
-    api_utils::structs::PrivateUser,
-    sql_utils::calls::{get_public_user, insert_user},
-};
+use crate::{api_utils::structs::User, sql_utils::calls::UserRepository};
 
-pub async fn run(fluvio: Fluvio, db: sqlx::PgPool) -> anyhow::Result<()> {
+pub async fn run<T: UserRepository>(fluvio: Fluvio, db: T) -> anyhow::Result<()> {
     //TODO! do a proper fix on this
     let auth_registered_consumer_topic = var("AUTH_REGISTER_TOPIC")
         .unwrap_or("auth-register".to_owned())
@@ -28,17 +25,17 @@ pub async fn run(fluvio: Fluvio, db: sqlx::PgPool) -> anyhow::Result<()> {
         let parse_result = from_slice::<UserCreated>(record.value());
 
         if let Ok(user_created) = &parse_result {
-            let user = PrivateUser {
+            let user = User {
                 id: user_created.id.clone(),
                 username: user_created.username.clone(),
                 created_at: None,
             };
-            if get_public_user(&user.id, &db).await.is_some() {
-                //TODO! User already exists, big time error
+            if db.get_user(&user.id).await.is_some() {
+                //FIXME! User already exists, big time error
                 continue;
             }
 
-            if insert_user(user, &db).await.is_err() {
+            if db.insert_user(&user).await.is_err() {
                 //TODO! IDK, panic I guess
             }
         }

@@ -8,7 +8,7 @@ pub struct ApiResponseMessage {
 
 pub type ApiResponse<T> = (StatusCode, Json<T>);
 
-pub static FLUVIO_ERROR: ApiResponse<ApiResponseMessage> = (
+pub static INTERNAL_SERVER_ERROR: ApiResponse<ApiResponseMessage> = (
     StatusCode::INTERNAL_SERVER_ERROR,
     Json(ApiResponseMessage {
         message: "Fluvio error",
@@ -19,41 +19,6 @@ pub static USER_DOES_NOT_EXIST: ApiResponse<ApiResponseMessage> = (
     StatusCode::NOT_FOUND,
     Json(ApiResponseMessage {
         message: "User does not exist",
-    }),
-);
-
-pub static DB_ERROR: ApiResponse<ApiResponseMessage> = (
-    StatusCode::INTERNAL_SERVER_ERROR,
-    Json(ApiResponseMessage {
-        message: "Failed to save to db",
-    }),
-);
-
-pub static PROFILE_UPDATED: ApiResponse<ApiResponseMessage> = (
-    StatusCode::OK,
-    Json(ApiResponseMessage {
-        message: "Profile updated",
-    }),
-);
-
-pub static REQUEST_CREATED: ApiResponse<ApiResponseMessage> = (
-    StatusCode::OK,
-    Json(ApiResponseMessage {
-        message: "Request created",
-    }),
-);
-
-pub static REQUEST_ACCEPTED: ApiResponse<ApiResponseMessage> = (
-    StatusCode::OK,
-    Json(ApiResponseMessage {
-        message: "Request accepted",
-    }),
-);
-
-pub static REQUEST_REJECTED: ApiResponse<ApiResponseMessage> = (
-    StatusCode::OK,
-    Json(ApiResponseMessage {
-        message: "Request rejected",
     }),
 );
 
@@ -78,20 +43,6 @@ pub static REQUEST_NOT_PENDING: ApiResponse<ApiResponseMessage> = (
     }),
 );
 
-pub static BLOCK_ADDED: ApiResponse<ApiResponseMessage> = (
-    StatusCode::OK,
-    Json(ApiResponseMessage {
-        message: "Block added",
-    }),
-);
-
-pub static BLOCK_REMOVED: ApiResponse<ApiResponseMessage> = (
-    StatusCode::OK,
-    Json(ApiResponseMessage {
-        message: "Block removed",
-    }),
-);
-
 pub static BLOCK_ALREADY_EXISTS: ApiResponse<ApiResponseMessage> = (
     StatusCode::CONFLICT,
     Json(ApiResponseMessage {
@@ -105,3 +56,27 @@ pub static BLOCK_DOES_NOT_EXISTS: ApiResponse<ApiResponseMessage> = (
         message: "Block does not exist",
     }),
 );
+
+pub static ALREADY_FRIEND: ApiResponse<ApiResponseMessage> = (
+    StatusCode::CONFLICT,
+    Json(ApiResponseMessage {
+        message: "User is already your friend",
+    }),
+);
+
+pub static RANGE_TOO_LARGE: ApiResponse<ApiResponseMessage> = (
+    StatusCode::BAD_REQUEST,
+    Json(ApiResponseMessage {
+        message: "Range is to big",
+    }),
+);
+
+pub static CONFLICT_UPDATING_PROFILE: ApiResponse<ApiResponseMessage> = (
+    StatusCode::CONFLICT,
+    Json(ApiResponseMessage {
+        message: "Profile values already taken",
+    }),
+);
+
+pub static OK: ApiResponse<ApiResponseMessage> =
+    (StatusCode::OK, Json(ApiResponseMessage { message: "Ok" }));
