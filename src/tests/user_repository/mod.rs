@@ -146,6 +146,21 @@ pub async fn delete_friendship_ok<T: UserRepository>(db: &T) {
     assert_eq!(db.get_user_friend(&a.id, &b.id).await, None);
 }
 
+pub async fn get_friendships<T: UserRepository>(db: &T) {
+    let a = create_user(db, "user-a", "Alice").await;
+    let b = create_user(db, "user-b", "Bob").await;
+    let c = create_user(db, "user-c", "Carl").await;
+    let d = create_user(db, "user-d", "Dominic").await;
+    let e = create_user(db, "user-e", "Elisabeth").await;
+    create_friendship(db, &a, &b).await;
+    create_friendship(db, &a, &c).await;
+    create_friendship(db, &a, &d).await;
+    create_friendship(db, &a, &e).await;
+    let range = Range { from: 0, to: 5 };
+    let friend_list = db.get_user_friends(&a.id, &range).await;
+    assert_eq!(Some(vec![b, c, d, e]), friend_list);
+}
+
 // ---------- BLOCK TESTS ----------
 pub async fn insert_block_ok<T: UserRepository>(db: &T) {
     let a = create_user(db, "user-a", "Alice").await;

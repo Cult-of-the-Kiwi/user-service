@@ -111,7 +111,7 @@ impl UserRepository for Pool<Postgres> {
         JOIN friendships f
         ON f.to_user_id = u.id
         WHERE f.from_user_id = $1
-        ORDER BY f.created_at DESC
+        ORDER BY f.created_at ASC
         OFFSET $2
         LIMIT $3
     ",

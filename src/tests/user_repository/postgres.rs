@@ -12,9 +12,10 @@ use crate::{
     sql_utils::init::init,
     tests::user_repository::{
         delete_block_ok, delete_friend_request_ok, delete_friendship_ok, delete_user_ok,
-        insert_block_ok, insert_friend_request_duplicate, insert_friend_request_ok,
-        insert_friendship_ok, insert_user_duplicate_id, insert_user_duplicate_name, insert_user_ok,
-        update_user_name, update_user_name_without_changing_others,
+        get_friendships, insert_block_ok, insert_friend_request_duplicate,
+        insert_friend_request_ok, insert_friendship_ok, insert_user_duplicate_id,
+        insert_user_duplicate_name, insert_user_ok, update_user_name,
+        update_user_name_without_changing_others,
     },
 };
 
@@ -113,6 +114,12 @@ async fn test_postgres_insert_friendship_ok() {
 async fn test_postgres_delete_friendship_ok() {
     let (_pg, db) = setup_postgres().await;
     delete_friendship_ok(&db).await;
+}
+
+#[tokio::test]
+async fn test_postgres_get_friendships() {
+    let (_pg, db) = setup_postgres().await;
+    get_friendships(&db).await;
 }
 
 // -------------------- BLOCK TESTS --------------------
