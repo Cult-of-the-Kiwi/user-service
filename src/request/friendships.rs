@@ -12,7 +12,8 @@ use crate::{
     api_utils::{
         responses::{
             ALREADY_FRIEND, ApiResponse, ApiResponseMessage, INTERNAL_SERVER_ERROR, OK,
-            RANGE_TOO_LARGE, REQUEST_ALREADY_EXIST, REQUEST_DOES_NOT_EXIST, USER_DOES_NOT_EXIST,
+            RANGE_TOO_LARGE, REQUEST_ALREADY_EXIST, REQUEST_DOES_NOT_EXIST, REQUEST_NOT_PENDING,
+            USER_DOES_NOT_EXIST,
         },
         structs::{FriendRequest, FriendRequestDirection, FriendRequestRange, Range},
     },
@@ -133,6 +134,14 @@ pub async fn update_request<T: UserRepository>(
     request: &FriendRequest,
     db: &T,
 ) -> Result<(), ApiResponse<ApiResponseMessage>> {
+    let Some(pending_request) = db.get_friend_request(request).await else {
+        return Err(REQUEST_DOES_NOT_EXIST);
+    };
+
+    if !pending_request.is_pending() {
+        return Err(REQUEST_NOT_PENDING);
+    }
+
     db.update_friend_request(request)
         .await
         .map_err(|e| match e {

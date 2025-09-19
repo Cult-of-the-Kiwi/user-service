@@ -14,7 +14,7 @@ use crate::{
 
 pub async fn update<T: UserRepository>(
     State(state): State<Arc<AppState<T>>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
+    Authenticated { claims: _, jwt: _ }: Authenticated,
     Json(request): Json<UpdateUser>,
 ) -> impl IntoResponse {
     match state.db.update_user(&request).await {
