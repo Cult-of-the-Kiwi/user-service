@@ -14,7 +14,7 @@ use crate::{
         delete_block_ok, delete_friend_request_ok, delete_friendship_ok, delete_user_ok,
         insert_block_ok, insert_friend_request_duplicate, insert_friend_request_ok,
         insert_friendship_ok, insert_user_duplicate_id, insert_user_duplicate_name, insert_user_ok,
-        update_user_name,
+        update_user_name, update_user_name_without_changing_others,
     },
 };
 
@@ -69,6 +69,12 @@ async fn test_postgres_insert_user_fails_when_id_taken() {
 async fn test_postgres_update_user_name() {
     let (_pg, db) = setup_postgres().await;
     update_user_name(&db).await;
+}
+
+#[tokio::test]
+async fn test_postgres_update_user_name_without_changing_others() {
+    let (_pg, db) = setup_postgres().await;
+    update_user_name_without_changing_others(&db).await;
 }
 
 #[tokio::test]

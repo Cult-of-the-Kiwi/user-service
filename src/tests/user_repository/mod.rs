@@ -85,6 +85,18 @@ pub async fn update_user_name<T: UserRepository>(db: &T) {
     assert_eq!(db.get_user(&u.id).await, Some(u));
 }
 
+pub async fn update_user_name_without_changing_others<T: UserRepository>(db: &T) {
+    let mut u = create_user(db, "user-x", "OldName").await;
+    let other_u = create_user(db, "x", "x").await;
+    let upd = UpdateUser {
+        username: Some("NewName".into()),
+    };
+    assert!(db.update_user(&u.id, &upd).await.is_ok());
+    u.username = "NewName".into();
+    assert_eq!(db.get_user(&u.id).await, Some(u));
+    assert_eq!(db.get_user(&other_u.id).await, Some(other_u));
+}
+
 pub async fn delete_user_ok<T: UserRepository>(db: &T) {
     let u = create_user(db, "user-del", "Temp").await;
     assert!(db.delete_user(&u).await.is_ok());

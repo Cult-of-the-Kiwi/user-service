@@ -276,18 +276,25 @@ impl UserRepository for Pool<Postgres> {
             return Ok(());
         }
 
+        let mut first = true;
+
         let mut qb = QueryBuilder::new(
             "
             UPDATE users
-            WHERE id = 
+            SET
         ",
         );
-        qb.push_bind(user_id);
-        qb.push(" SET ");
 
         if let Some(username) = &update.username {
-            qb.push(" username = ").push_bind(username);
+            if !first {
+                qb.push(", ");
+            }
+            qb.push("username = ").push_bind(username);
+            first = false;
         }
+
+        qb.push(" WHERE id =  ");
+        qb.push_bind(user_id);
 
         qb.build().execute(self).await?;
 
