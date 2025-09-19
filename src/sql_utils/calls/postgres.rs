@@ -27,12 +27,11 @@ impl UserRepository for Pool<Postgres> {
     ) -> Option<crate::api_utils::structs::User> {
         sqlx::query_as(
             "
-        SELECT username, id, created_at
+        SELECT u.username, u.id, u.created_at
         FROM users u
         JOIN friendships f
-            ON f.from_user_id = $1
-            AND f.to_user_id = u.id
-        WHERE u.id = $2
+            ON f.to_user_id = u.id
+        WHERE f.from_user_id = $1 AND u.id = $2 
     ",
         )
         .bind(user_id)
@@ -48,7 +47,7 @@ impl UserRepository for Pool<Postgres> {
     ) -> Option<crate::api_utils::structs::FriendRequest> {
         sqlx::query_as(
             "
-        SELECT from_user_id, to_user_id, created_at
+        SELECT from_user_id, to_user_id, created_at, state
         FROM friend_requests
         WHERE from_user_id = $1 AND to_user_id = $2
     ",
@@ -107,7 +106,7 @@ impl UserRepository for Pool<Postgres> {
     ) -> Option<Vec<crate::api_utils::structs::User>> {
         sqlx::query_as(
             "
-        SELECT id, username, created_at
+        SELECT u.id, u.username, u.created_at
         FROM users u
         JOIN friendships f
         ON f.to_user_id = u.id
@@ -135,9 +134,8 @@ impl UserRepository for Pool<Postgres> {
         SELECT username, id, created_at
         FROM users u
         JOIN blocks b
-            ON b.from_user_id = $1
-            AND b.to_user_id = u.id
-        WHERE u.id = $2
+            ON b.to_user_id = u.id
+        WHERE b.from_user_id = $1 AND u.id = $2
     ",
         )
         .bind(user_id)
@@ -159,7 +157,7 @@ impl UserRepository for Pool<Postgres> {
             WHERE from_user_id = $1
             ORDER BY created_at DESC
             OFFSET $2
-            LIMIT $1
+            LIMIT $3
         ",
         )
         .bind(user_id)
@@ -301,7 +299,7 @@ impl UserRepository for Pool<Postgres> {
             "
             DELETE
             FROM blocks
-            WHERE from_user_id = $1, to_user_id = $2
+            WHERE from_user_id = $1 AND to_user_id = $2
         ",
         )
         .bind(&block.from_user_id)
@@ -359,7 +357,7 @@ impl UserRepository for Pool<Postgres> {
             "
             DELETE
             FROM users
-            WHERE user_id = $1
+            WHERE id = $1
         ",
         )
         .bind(&user.id)

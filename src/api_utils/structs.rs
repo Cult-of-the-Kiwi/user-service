@@ -61,6 +61,12 @@ pub(crate) struct FriendRequest {
     pub state: FriendRequestState,
 }
 
+impl PartialEq for FriendRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.from_user_id == other.from_user_id && self.to_user_id == other.to_user_id
+    }
+}
+
 impl FriendRequest {
     pub fn accept(&mut self) {
         self.state = FriendRequestState::Accepted;
@@ -94,6 +100,12 @@ pub(crate) struct Friendship {
     pub created_at: Option<DateTime<Utc>>,
 }
 
+impl PartialEq for Friendship {
+    fn eq(&self, other: &Self) -> bool {
+        self.from_user_id == other.from_user_id && self.to_user_id == other.to_user_id
+    }
+}
+
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub(crate) struct Range {
     pub from: i32,
@@ -108,6 +120,12 @@ pub(crate) struct Block {
     pub to_user_id: UserID,
     #[serde(skip_deserializing)]
     pub created_at: Option<DateTime<Utc>>,
+}
+
+impl PartialEq for Block {
+    fn eq(&self, other: &Self) -> bool {
+        self.from_user_id == other.from_user_id && self.to_user_id == other.to_user_id
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
