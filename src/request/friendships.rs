@@ -7,7 +7,6 @@ use axum::{
 };
 use axum_extra::either::Either::{self, E1, E2};
 use devcord_middlewares::middlewares::auth::Authenticated;
-use sqlx::PgPool;
 
 use crate::{
     api_utils::{
@@ -27,6 +26,25 @@ pub async fn request_friend<T: UserRepository>(
     Authenticated { claims, jwt: _ }: Authenticated,
     Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
+    if let Some(request) = state.db.get_friend_request(&request.inverted()).await {
+        if request.is_pending() {
+            match state
+                .db
+                .insert_friendship(&request.from_user_id, &request.to_user_id)
+                .await
+            {
+                Ok(_) => return OK,
+                Err(e) => match e {
+                    devcord_sqlx_utils::error::Error::AlreadyExists => return ALREADY_FRIEND,
+                    _ => return INTERNAL_SERVER_ERROR,
+                },
+            }
+        } else {
+            //FIXME! (Lamoara) Give feedback for accepted or rejected but this state is 'illegal'
+            return INTERNAL_SERVER_ERROR;
+        }
+    }
+
     if state
         .db
         .get_user_friend(&claims.user_id, &request.to_user_id)

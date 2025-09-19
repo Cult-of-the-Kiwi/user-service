@@ -19,7 +19,9 @@ impl PartialEq for User {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize, sqlx::Type)]
+#[derive(
+    Debug, Default, Deserialize, Serialize, sqlx::Type, Clone, Copy, PartialEq, Eq, PartialOrd, Ord,
+)]
 #[sqlx(type_name = "friend_request_state", rename_all = "lowercase")]
 pub enum FriendRequestState {
     #[default]
@@ -74,6 +76,19 @@ impl FriendRequest {
 
     pub fn reject(&mut self) {
         self.state = FriendRequestState::Rejected;
+    }
+
+    pub fn inverted(&self) -> FriendRequest {
+        FriendRequest {
+            from_user_id: self.to_user_id.clone(),
+            to_user_id: self.from_user_id.clone(),
+            created_at: self.created_at,
+            state: self.state,
+        }
+    }
+
+    pub fn is_pending(&self) -> bool {
+        self.state == FriendRequestState::Pending
     }
 }
 
