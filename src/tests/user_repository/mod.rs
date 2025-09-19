@@ -80,7 +80,7 @@ pub async fn update_user_name<T: UserRepository>(db: &T) {
     let upd = UpdateUser {
         username: Some("NewName".into()),
     };
-    assert!(db.update_user(&upd).await.is_ok());
+    assert!(db.update_user(&u.id, &upd).await.is_ok());
     u.username = "NewName".into();
     assert_eq!(db.get_user(&u.id).await, Some(u));
 }

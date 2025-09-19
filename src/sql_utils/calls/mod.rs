@@ -31,7 +31,7 @@ pub(crate) trait UserRepository {
     async fn insert_user(&self, user: &User) -> Result<(), Error>;
     //Updates
     async fn update_friend_request(&self, request: &FriendRequest) -> Result<(), Error>;
-    async fn update_user(&self, request: &UpdateUser) -> Result<(), Error>;
+    async fn update_user(&self, user_id: &UserID, request: &UpdateUser) -> Result<(), Error>;
     //DELETE
     async fn delete_block(&self, request: &Block) -> Result<(), Error>;
     async fn delete_friendship(&self, friendship: &Friendship) -> Result<(), Error>;

@@ -269,6 +269,7 @@ impl UserRepository for Pool<Postgres> {
 
     async fn update_user(
         &self,
+        user_id: &crate::api_utils::types::UserID,
         update: &crate::api_utils::structs::UpdateUser,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         if update.is_empty() {
@@ -278,9 +279,11 @@ impl UserRepository for Pool<Postgres> {
         let mut qb = QueryBuilder::new(
             "
             UPDATE users
-            SET
+            WHERE id = 
         ",
         );
+        qb.push_bind(user_id);
+        qb.push(" SET ");
 
         if let Some(username) = &update.username {
             qb.push(" username = ").push_bind(username);

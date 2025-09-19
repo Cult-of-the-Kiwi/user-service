@@ -14,10 +14,10 @@ use crate::{
 
 pub async fn update<T: UserRepository>(
     State(state): State<Arc<AppState<T>>>,
-    Authenticated { claims: _, jwt: _ }: Authenticated,
+    Authenticated { claims, jwt: _ }: Authenticated,
     Json(request): Json<UpdateUser>,
 ) -> impl IntoResponse {
-    match state.db.update_user(&request).await {
+    match state.db.update_user(&claims.user_id, &request).await {
         Ok(_) => OK,
         Err(e) => match e {
             devcord_sqlx_utils::error::Error::AlreadyExists => CONFLICT_UPDATING_PROFILE,
