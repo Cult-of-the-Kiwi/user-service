@@ -47,10 +47,22 @@ pub async fn init(db: &sqlx::PgPool) -> anyhow::Result<()> {
 
     sqlx::query(
         "
+        CREATE TYPE friend_request_state AS ENUM (
+            'pending',
+            'accepted',
+            'rejected'
+        );
+        ",
+    )
+    .execute(db)
+    .await?;
+
+    sqlx::query(
+        "
         CREATE TABLE IF NOT EXISTS friend_requests (
         from_user_id TEXT NOT NULL,
         to_user_id TEXT NOT NULL,
-        state TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | rejected
+        state friend_request_state NOT NULL DEFAULT 'pending',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         responded_at TIMESTAMP WITH TIME ZONE,
 

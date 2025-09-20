@@ -21,3 +21,7 @@ tracing-subscriber = {version = "0.3.19", features = ["env-filter", "fmt"]}
 topic_structs = { git = "https://github.com/Cult-of-the-Kiwi/topic_structs" }
 axum-extra = {version = "0.10.1", features = ["typed-header"] }
 chrono = {version = "0.4.41", features = ["serde"] }
+devcord_middlewares= {git = "https://github.com/Cult-of-the-Kiwi/devcord_middlewares"}
+devcord_sqlx_utils= {git = "https://github.com/Cult-of-the-Kiwi/devcord_sqlx_utils"}
+thiserror = "2.0.16"
+testcontainers = {version = "0.25.0", features = ["blocking"] }
