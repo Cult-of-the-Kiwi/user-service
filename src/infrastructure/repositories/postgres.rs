@@ -1,12 +1,22 @@
 use sqlx::{Pool, Postgres, QueryBuilder};
 
-use crate::{api_utils::structs::FriendRequestDirection, sql_utils::calls::UserRepository};
+use crate::{
+    application::repositories::user_repository::UserRepository,
+    domain::{
+        models::{
+            block::Block,
+            friend_request::{FriendRequest, FriendRequestDirection, FriendRequestRange},
+            friendship::Friendship,
+            range::Range,
+            update_user::UpdateUser,
+            user::User,
+        },
+        types::UserID,
+    },
+};
 
 impl UserRepository for Pool<Postgres> {
-    async fn get_user(
-        &self,
-        user_id: &crate::api_utils::types::UserID,
-    ) -> Option<crate::api_utils::structs::User> {
+    async fn get_user(&self, user_id: &UserID) -> Option<User> {
         sqlx::query_as(
             "
         SELECT username, id, created_at 
@@ -20,11 +30,7 @@ impl UserRepository for Pool<Postgres> {
         .ok()
     }
 
-    async fn get_user_friend(
-        &self,
-        user_id: &crate::api_utils::types::UserID,
-        friend_id: &crate::api_utils::types::UserID,
-    ) -> Option<crate::api_utils::structs::User> {
+    async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Option<User> {
         sqlx::query_as(
             "
         SELECT u.username, u.id, u.created_at
@@ -41,10 +47,7 @@ impl UserRepository for Pool<Postgres> {
         .ok()
     }
 
-    async fn get_friend_request(
-        &self,
-        request: &crate::api_utils::structs::FriendRequest,
-    ) -> Option<crate::api_utils::structs::FriendRequest> {
+    async fn get_friend_request(&self, request: &FriendRequest) -> Option<FriendRequest> {
         sqlx::query_as(
             "
         SELECT from_user_id, to_user_id, created_at, state
@@ -61,10 +64,10 @@ impl UserRepository for Pool<Postgres> {
 
     async fn get_friend_requests(
         &self,
-        user_id: &crate::api_utils::types::UserID,
-        range: &crate::api_utils::structs::FriendRequestRange,
-        direction: &crate::api_utils::structs::FriendRequestDirection,
-    ) -> Option<Vec<crate::api_utils::structs::FriendRequest>> {
+        user_id: &UserID,
+        range: &FriendRequestRange,
+        direction: &FriendRequestDirection,
+    ) -> Option<Vec<FriendRequest>> {
         let mut qb = QueryBuilder::new(
             "
         SELECT from_user_id, to_user_id, created_at, state
@@ -99,11 +102,7 @@ impl UserRepository for Pool<Postgres> {
         .ok()
     }
 
-    async fn get_user_friends(
-        &self,
-        user_id: &crate::api_utils::types::UserID,
-        range: &crate::api_utils::structs::Range,
-    ) -> Option<Vec<crate::api_utils::structs::User>> {
+    async fn get_user_friends(&self, user_id: &UserID, range: &Range) -> Option<Vec<User>> {
         sqlx::query_as(
             "
         SELECT u.id, u.username, u.created_at
@@ -124,11 +123,7 @@ impl UserRepository for Pool<Postgres> {
         .ok()
     }
 
-    async fn get_user_block(
-        &self,
-        user_id: &crate::api_utils::types::UserID,
-        blocked_id: &crate::api_utils::types::UserID,
-    ) -> Option<crate::api_utils::structs::User> {
+    async fn get_user_block(&self, user_id: &UserID, blocked_id: &UserID) -> Option<User> {
         sqlx::query_as(
             "
         SELECT username, id, created_at
@@ -145,11 +140,7 @@ impl UserRepository for Pool<Postgres> {
         .ok()
     }
 
-    async fn get_user_blocks(
-        &self,
-        user_id: &crate::api_utils::types::UserID,
-        range: &crate::api_utils::structs::Range,
-    ) -> Option<Vec<crate::api_utils::structs::Block>> {
+    async fn get_user_blocks(&self, user_id: &UserID, range: &Range) -> Option<Vec<Block>> {
         sqlx::query_as(
             "
             SELECT from_user_id, to_user_id, created_at
@@ -170,7 +161,7 @@ impl UserRepository for Pool<Postgres> {
 
     async fn insert_friend_request(
         &self,
-        request: &crate::api_utils::structs::FriendRequest,
+        request: &FriendRequest,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
@@ -189,8 +180,8 @@ impl UserRepository for Pool<Postgres> {
 
     async fn insert_friendship(
         &self,
-        user_a: &crate::api_utils::types::UserID,
-        user_b: &crate::api_utils::types::UserID,
+        user_a: &UserID,
+        user_b: &UserID,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
@@ -207,10 +198,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn insert_block(
-        &self,
-        request: &crate::api_utils::structs::Block,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn insert_block(&self, request: &Block) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
         INSERT
@@ -226,10 +214,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn insert_user(
-        &self,
-        user: &crate::api_utils::structs::User,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn insert_user(&self, user: &User) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
             INSERT
@@ -249,7 +234,7 @@ impl UserRepository for Pool<Postgres> {
 
     async fn update_friend_request(
         &self,
-        request: &crate::api_utils::structs::FriendRequest,
+        request: &FriendRequest,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
@@ -269,8 +254,8 @@ impl UserRepository for Pool<Postgres> {
 
     async fn update_user(
         &self,
-        user_id: &crate::api_utils::types::UserID,
-        update: &crate::api_utils::structs::UpdateUser,
+        user_id: &UserID,
+        update: &UpdateUser,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         if update.is_empty() {
             return Ok(());
@@ -301,10 +286,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn delete_block(
-        &self,
-        block: &crate::api_utils::structs::Block,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn delete_block(&self, block: &Block) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
             DELETE
@@ -322,7 +304,7 @@ impl UserRepository for Pool<Postgres> {
 
     async fn delete_friendship(
         &self,
-        friendship: &crate::api_utils::structs::Friendship,
+        friendship: &Friendship,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
@@ -341,7 +323,7 @@ impl UserRepository for Pool<Postgres> {
 
     async fn delete_friend_request(
         &self,
-        request: &crate::api_utils::structs::FriendRequest,
+        request: &FriendRequest,
     ) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
@@ -359,10 +341,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn delete_user(
-        &self,
-        user: &crate::api_utils::structs::User,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn delete_user(&self, user: &User) -> Result<(), devcord_sqlx_utils::error::Error> {
         sqlx::query(
             "
             DELETE

@@ -9,7 +9,7 @@ use testcontainers::{
 use tokio::time::sleep;
 
 use crate::{
-    sql_utils::init::init,
+    infrastructure::context::db::postgres::{PgOptions, new_pg_pool},
     tests::user_repository::{
         delete_block_ok, delete_friend_request_ok, delete_friendship_ok, delete_user_ok,
         get_friendships, insert_block_ok, insert_friend_request_duplicate,
@@ -35,14 +35,12 @@ async fn setup_postgres() -> (ContainerAsync<GenericImage>, PgPool) {
     let port = pg.get_host_port_ipv4(5432).await.unwrap();
     sleep(Duration::from_secs(2)).await;
 
-    let db_url = format!("postgres://postgres:password@127.0.0.1:{}/testdb", port);
-
-    let db = PgPoolOptions::new()
-        .connect(&db_url)
-        .await
-        .expect("Failed to connect to postgres db");
-
-    init(&db).await.unwrap();
+    let options = PgOptions {
+        url: &format!("postgres://postgres:password@127.0.0.1:{}/testdb", port),
+        max_conns: 1,
+        acquire_timeout: Duration::from_secs(10),
+    };
+    let db = new_pg_pool(&options).await.unwrap();
 
     (pg, db)
 }

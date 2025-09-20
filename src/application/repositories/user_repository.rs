@@ -1,16 +1,18 @@
-pub(crate) mod postgres;
-
 use devcord_sqlx_utils::error::Error;
 
-use crate::api_utils::{
-    structs::{
-        Block, FriendRequest, FriendRequestDirection, FriendRequestRange, Friendship, Range,
-        UpdateUser, User,
+use crate::domain::{
+    models::{
+        block::Block,
+        friend_request::{FriendRequest, FriendRequestDirection, FriendRequestRange},
+        friendship::Friendship,
+        range::Range,
+        update_user::UpdateUser,
+        user::User,
     },
     types::UserID,
 };
 
-pub(crate) trait UserRepository {
+pub(crate) trait UserRepository: Sync + Send {
     //Getters
     async fn get_user(&self, user_id: &UserID) -> Option<User>;
     async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Option<User>;

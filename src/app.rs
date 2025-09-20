@@ -6,23 +6,27 @@ use axum::{
     routing::{get, post},
     serve,
 };
-use fluvio::{Fluvio, FluvioConfig, TopicProducer, metadata::topic::TopicSpec, spu::SpuSocketPool};
-use sqlx::postgres::PgPoolOptions;
+use fluvio::{Fluvio, TopicProducer, spu::SpuSocketPool};
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
-    fluvio_consumer,
-    request::{
+    application::repositories::user_repository::UserRepository,
+    handlers::{
         block::{block, get_blocks, unblock},
-        friendships::{
-            accept_request, get_friends, get_requests_received, get_requests_sent, reject_request,
-            request_friend,
+        friendship::{
+            friend_requests::{
+                accept_request, get_requests_received, get_requests_sent, request_friend,
+            },
+            friends::{get_friends, remove_friend},
         },
         user::{get_user, update},
     },
-    sql_utils::{calls::UserRepository, init::init},
+    infrastructure::context::{
+        db::postgres::{PgOptions, new_pg_pool},
+        events::fluvio::new_fluvio,
+    },
 };
 
 #[derive(Clone)]
@@ -32,7 +36,7 @@ pub(crate) struct AppState<T: UserRepository> {
     pub request_answered_producer: TopicProducer<SpuSocketPool>,
 }
 
-pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
+pub async fn app<T: UserRepository>(fluvio: Fluvio, db: T) -> anyhow::Result<Router> {
     let origins: Vec<HeaderValue> = var("CORS_ORIGIN")
         .expect("CORS_ORIGIN env not set")
         .split(",")
@@ -56,39 +60,6 @@ pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
 
     let trace_layer = TraceLayer::new_for_http();
 
-    let max_conns: u32 = var("DB_MAX_CONNECTIONS")
-        .unwrap_or("1".to_owned())
-        .parse()
-        .expect("DB_MAX_CONNECTIONS must be a number");
-
-    let db_timeout: u64 = var("DB_POOL_TIMEOUT_SECS")
-        .unwrap_or("10".to_owned())
-        .parse()
-        .expect("DB_POOL_TIMEOUT_SECS must be a number");
-
-    let db = PgPoolOptions::new()
-        .max_connections(max_conns)
-        .acquire_timeout(Duration::from_secs(db_timeout))
-        .connect(
-            var("DATABASE_URL")
-                .expect("DATABASE_URL env not set")
-                .trim(),
-        )
-        .await?;
-
-    init(&db).await?;
-
-    let mut fluvio_config =
-        FluvioConfig::new(var("FLUVIO_ADDR").expect("FLUVIO_ADDR env not set").trim());
-    fluvio_config.use_spu_local_address = true;
-
-    let fluvio = fluvio::Fluvio::connect_with_config(&fluvio_config).await?;
-
-    let auth_registered_consumer_topic = var("AUTH_REGISTER_TOPIC")
-        .unwrap_or("auth-register".to_owned())
-        .trim()
-        .to_string();
-
     let request_producer_topic = var("USER_RESQUEST_TOPIC")
         .unwrap_or("friendships-request".to_owned())
         .trim()
@@ -99,46 +70,12 @@ pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
         .trim()
         .to_string();
 
-    let admin = fluvio.admin().await;
-
-    let topics = admin
-        .all::<TopicSpec>()
-        .await
-        .expect("Failed to list topics");
-    let topic_names = topics
-        .iter()
-        .map(|topic| topic.name.clone())
-        .collect::<Vec<String>>();
-
-    //Creates topic if they dont exist
-
-    if !topic_names.contains(&request_producer_topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(request_producer_topic.clone(), false, topic_spec)
-            .await?;
-    }
-
-    if !topic_names.contains(&answered_producer_topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(answered_producer_topic.clone(), false, topic_spec)
-            .await?;
-    }
-
-    if !topic_names.contains(&auth_registered_consumer_topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(auth_registered_consumer_topic.clone(), false, topic_spec)
-            .await?;
-    }
-
     let request_producer = fluvio.topic_producer(request_producer_topic).await?;
 
     let answered_producer = fluvio.topic_producer(answered_producer_topic).await?;
 
     let state = Arc::new(AppState {
-        db: db.clone(),
+        db,
         request_sent_producer: request_producer,
         request_answered_producer: answered_producer,
     });
@@ -146,10 +83,11 @@ pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
     let friendships_router = Router::new()
         .route("/request", post(request_friend))
         .route("/accept", post(accept_request))
-        .route("/reject", post(reject_request))
+        .route("/reject", post(accept_request))
         .route("/sent", get(get_requests_sent))
         .route("/received", get(get_requests_received))
-        .route("/friends", get(get_friends));
+        .route("/friends", get(get_friends))
+        .route("/unfriend", get(remove_friend));
 
     let block_router = Router::new()
         .route("/block", post(block))
@@ -169,11 +107,35 @@ pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
         .layer(trace_layer)
         .with_state(state);
 
-    Ok((app, fluvio, db))
+    Ok(app)
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    let (app, fluvio, db) = app().await?;
+    let max_conns: u32 = var("DB_MAX_CONNECTIONS")
+        .unwrap_or("1".to_owned())
+        .parse()
+        .expect("DB_MAX_CONNECTIONS must be a number");
+
+    let db_timeout: u64 = var("DB_POOL_TIMEOUT_SECS")
+        .unwrap_or("10".to_owned())
+        .parse()
+        .expect("DB_POOL_TIMEOUT_SECS must be a number");
+
+    let db_url = var("DATABASE_URL")
+        .expect("DATABASE_URL env not set")
+        .trim()
+        .to_string();
+
+    let options = PgOptions {
+        url: &db_url,
+        max_conns: max_conns,
+        acquire_timeout: Duration::from_secs(db_timeout),
+    };
+    let db = new_pg_pool(&options).await?;
+
+    let fluvio = new_fluvio(var("FLUVIO_ADDR").expect("FLUVIO_ADDR env not set").trim()).await?;
+
+    let app = app(fluvio, db).await?;
 
     let addr: SocketAddr = var("SOCKET_ADDR")
         .expect("SOCKET_ADDR env not set")
@@ -182,9 +144,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     println!("Server runnnig at: {addr}");
 
-    let consumer_thread = tokio::spawn(fluvio_consumer::run(fluvio, db));
 
     serve(listener, app.into_make_service()).await?;
-    consumer_thread.await??;
     Ok(())
 }

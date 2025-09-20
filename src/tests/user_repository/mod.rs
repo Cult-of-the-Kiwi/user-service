@@ -1,10 +1,14 @@
 mod postgres;
 
-use crate::{
-    api_utils::structs::{Block, FriendRequest, Friendship, Range, UpdateUser, User},
-    sql_utils::calls::UserRepository,
-};
 use devcord_sqlx_utils::error::Error;
+
+use crate::{
+    application::repositories::user_repository::UserRepository,
+    domain::models::{
+        block::Block, friend_request::FriendRequest, friendship::Friendship, range::Range,
+        update_user::UpdateUser, user::User,
+    },
+};
 
 // ---------- HELPERS ----------
 async fn create_user<T: UserRepository>(db: &T, id: &str, name: &str) -> User {
