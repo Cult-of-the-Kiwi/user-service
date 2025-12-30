@@ -4,10 +4,10 @@ use crate::{
     application::repositories::user_repository::UserRepository,
     domain::{
         errors::{
+            Error,
             block::BlockError::{BlockAlreadyExists, BlockDoesNotExist},
             domain::DomainError::InternalError,
             user::UserError::UserDoesNotExist,
-            Error,
         },
         models::{block::Block, range::Range},
         types::UserID,
