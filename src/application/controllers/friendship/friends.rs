@@ -10,7 +10,7 @@ use devcord_middlewares::middlewares::auth::Authenticated;
 use crate::{
     app::AppState,
     domain::models::{range::Range, user::User},
-    handlers::friendship::friends::{handle_get_friends, handle_remove_friend},
+    handlers::friendship::friends::{handle_get_friends, handle_is_friend, handle_remove_friend},
 };
 
 pub async fn get_friends(
@@ -29,4 +29,14 @@ pub async fn remove_friend(
     Json(user): Json<User>,
 ) -> impl IntoResponse {
     handle_remove_friend(state.db.clone(), claims.user_id, user.id).await
+}
+
+pub async fn is_friend(
+    State(state): State<Arc<AppState>>,
+    Authenticated { claims, jwt: _ }: Authenticated,
+    Json(user): Json<User>,
+) -> impl IntoResponse {
+    handle_is_friend(state.db.clone(), claims.user_id, user.id)
+        .await
+        .map(Json)
 }

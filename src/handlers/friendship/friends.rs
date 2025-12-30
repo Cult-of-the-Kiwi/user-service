@@ -39,3 +39,15 @@ pub async fn handle_remove_friend(
             _ => InternalError.into(),
         })
 }
+
+pub async fn handle_is_friend(
+    db: Arc<dyn UserRepository>,
+    user_id: UserID,
+    friend_id: UserID,
+) -> Result<bool, Error> {
+    match db.get_user_friend(&user_id, &friend_id).await {
+        Ok(_) => Ok(true),
+        Err(devcord_sqlx_utils::error::Error::RowNotFound) => Ok(false),
+        Err(_) => Err(InternalError.into()),
+    }
+}

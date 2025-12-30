@@ -9,9 +9,7 @@ use crate::{
     domain::{
         models::{
             block::Block,
-            friend_request::{
-                FriendRequest, FriendRequestDirection, FriendRequestRange, FriendRequestState,
-            },
+            friend_request::{FriendRequest, FriendRequestDirection, FriendRequestRange},
             friendship::Friendship,
             range::Range,
             update_user::UpdateUser,
@@ -26,6 +24,7 @@ pub(crate) struct InMemoryUserRepository {
     users: Mutex<HashMap<UserID, User>>,
     friend_requests: Mutex<HashMap<(UserID, UserID), FriendRequest>>,
     friendships: Mutex<Vec<Friendship>>,
+    blocks: Mutex<Vec<Block>>,
 }
 
 impl InMemoryUserRepository {
@@ -34,6 +33,7 @@ impl InMemoryUserRepository {
             users: Mutex::new(users.into_iter().map(|u| (u.id.clone(), u)).collect()),
             friend_requests: Mutex::new(HashMap::new()),
             friendships: Mutex::new(Vec::new()),
+            blocks: Mutex::new(Vec::new()),
         }
     }
 }
@@ -123,7 +123,17 @@ impl UserRepository for InMemoryUserRepository {
         _user_id: &UserID,
         _blocked_id: &UserID,
     ) -> Result<User, DbError> {
-        Err(DbError::RowNotFound)
+        let blocks = self.blocks.lock().await;
+        let exists = blocks
+            .iter()
+            .any(|b| &b.from_user_id == _user_id && &b.to_user_id == _blocked_id);
+        drop(blocks);
+
+        if exists {
+            self.get_user(_blocked_id).await
+        } else {
+            Err(DbError::RowNotFound)
+        }
     }
 
     async fn get_user_blocks(
@@ -131,7 +141,12 @@ impl UserRepository for InMemoryUserRepository {
         _user_id: &UserID,
         _range: &Range,
     ) -> Result<Vec<Block>, DbError> {
-        Ok(Vec::new())
+        let blocks = self.blocks.lock().await;
+        Ok(blocks
+            .iter()
+            .filter(|b| &b.from_user_id == _user_id)
+            .cloned()
+            .collect())
     }
 
     async fn insert_friend_request(&self, request: &FriendRequest) -> Result<(), DbError> {
@@ -166,6 +181,20 @@ impl UserRepository for InMemoryUserRepository {
     }
 
     async fn insert_block(&self, _block: &Block) -> Result<(), DbError> {
+        let users = self.users.lock().await;
+        if !users.contains_key(&_block.from_user_id) || !users.contains_key(&_block.to_user_id) {
+            return Err(DbError::RowNotFound);
+        }
+        drop(users);
+
+        let mut blocks = self.blocks.lock().await;
+        if blocks
+            .iter()
+            .any(|b| b.from_user_id == _block.from_user_id && b.to_user_id == _block.to_user_id)
+        {
+            return Err(DbError::AlreadyExists);
+        }
+        blocks.push(_block.clone());
         Ok(())
     }
 
@@ -201,7 +230,15 @@ impl UserRepository for InMemoryUserRepository {
     }
 
     async fn delete_block(&self, _request: &Block) -> Result<(), DbError> {
-        Ok(())
+        let mut blocks = self.blocks.lock().await;
+        if let Some(idx) = blocks.iter().position(|b| {
+            b.from_user_id == _request.from_user_id && b.to_user_id == _request.to_user_id
+        }) {
+            blocks.remove(idx);
+            Ok(())
+        } else {
+            Err(DbError::RowNotFound)
+        }
     }
 
     async fn delete_friendship(&self, friendship: &Friendship) -> Result<(), DbError> {

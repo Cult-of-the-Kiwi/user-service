@@ -73,6 +73,9 @@ Servicio HTTP (Axum) para gestionar usuarios, amistades y bloqueos.
 { "user_id": "user-2" }
 ```
 - Respuesta 200: Vacía.
+- Errores:
+  - 404: "User does not exist"
+  - 409: "Friend request already exists"
 
 ### POST /friendship/accept
 - Authenticated: Sí
@@ -82,6 +85,9 @@ Servicio HTTP (Axum) para gestionar usuarios, amistades y bloqueos.
 { "user_id": "user-2" }
 ```
 - Respuesta 200: Vacía.
+- Errores:
+  - 404: "Friend request does not exist" | "User does not exist"
+  - 409: "Friend request already handled"
 
 ### POST /friendship/reject
 - Authenticated: Sí
@@ -91,6 +97,20 @@ Servicio HTTP (Axum) para gestionar usuarios, amistades y bloqueos.
 { "user_id": "user-2" }
 ```
 - Respuesta 200: Vacía.
+- Errores:
+  - 404: "Friend request does not exist" | "User does not exist"
+  - 409: "Friend request already handled"
+
+### POST /friendship/delete
+- Authenticated: Sí
+- Descripción: Elimina una solicitud de amistad enviada por el usuario autenticado.
+- Body (application/json):
+```json
+{ "user_id": "user-2" }
+```
+- Respuesta 200: Vacía.
+- Errores:
+  - 404: "Friend request does not exist"
 
 ### GET /friendship/sent
 - Authenticated: Sí
@@ -124,6 +144,18 @@ Servicio HTTP (Axum) para gestionar usuarios, amistades y bloqueos.
 ]
 ```
 
+### POST /friendship/is_friend
+- Authenticated: Sí
+- Descripción: Comprueba si el usuario autenticado es amigo de otro usuario.
+- Body (application/json):
+```json
+{ "id": "user-2", "username": "opcional" }
+```
+- Respuesta 200:
+```json
+true
+```
+
 ### GET /blocks
 - Authenticated: Sí
 - Descripción: Lista de usuarios bloqueados.
@@ -143,6 +175,9 @@ Servicio HTTP (Axum) para gestionar usuarios, amistades y bloqueos.
 { "user_id": "user-4" }
 ```
 - Respuesta 200: Vacía.
+- Errores:
+  - 404: "User does not exist"
+  - 409: "Block already exists"
 
 ### POST /blocks/unblock
 - Authenticated: Sí
@@ -152,3 +187,17 @@ Servicio HTTP (Axum) para gestionar usuarios, amistades y bloqueos.
 { "user_id": "user-4" }
 ```
 - Respuesta 200: Vacía.
+- Errores:
+  - 404: "Block does not exist"
+
+### POST /blocks/is_blocked
+- Authenticated: Sí
+- Descripción: Comprueba si el usuario autenticado bloqueó a otro usuario.
+- Body (application/json):
+```json
+{ "user_id": "user-4" }
+```
+- Respuesta 200:
+```json
+true
+```

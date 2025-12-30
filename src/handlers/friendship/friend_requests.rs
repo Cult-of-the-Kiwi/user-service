@@ -19,7 +19,9 @@ use crate::{
             },
             user::UserError::UserDoesNotExist,
         },
-        models::friend_request::{FriendRequest, FriendRequestDirection, FriendRequestRange},
+        models::friend_request::{
+            FriendRequest, FriendRequestDirection, FriendRequestRange, FriendRequestState,
+        },
         types::UserID,
     },
 };
@@ -169,6 +171,26 @@ pub async fn handle_reject_request(
         .notify(event)
         .await
         .map_err(|_| InternalError.into())
+}
+
+pub async fn handle_delete_request(
+    db: Arc<dyn UserRepository>,
+    sender_id: UserID,
+    recipient_id: UserID,
+) -> Result<(), Error> {
+    let request = FriendRequest {
+        from_user_id: sender_id,
+        to_user_id: recipient_id,
+        created_at: None,
+        state: FriendRequestState::Pending,
+    };
+
+    db.delete_friend_request(&request)
+        .await
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
+            _ => InternalError.into(),
+        })
 }
 
 pub async fn handle_get_requests_sent(

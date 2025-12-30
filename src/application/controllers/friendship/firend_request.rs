@@ -12,8 +12,8 @@ use crate::{
     app::AppState,
     domain::models::friend_request::{FriendRequest, FriendRequestRange},
     handlers::friendship::friend_requests::{
-        handle_accept_request, handle_get_requests_received, handle_get_requests_sent,
-        handle_reject_request, handle_request_friend,
+        handle_accept_request, handle_delete_request, handle_get_requests_received,
+        handle_get_requests_sent, handle_reject_request, handle_request_friend,
     },
 };
 
@@ -60,6 +60,14 @@ pub async fn reject_request(
         sender_id,
     )
     .await
+}
+
+pub async fn delete_request(
+    State(state): State<Arc<AppState>>,
+    Authenticated { claims, jwt: _ }: Authenticated,
+    Json(request): Json<FriendRequest>,
+) -> impl IntoResponse {
+    handle_delete_request(state.db.clone(), claims.user_id, request.to_user_id).await
 }
 
 pub async fn get_requests_sent(

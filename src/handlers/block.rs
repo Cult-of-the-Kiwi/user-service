@@ -61,3 +61,15 @@ pub async fn handle_get_blocks(
             _ => InternalError.into(),
         })
 }
+
+pub async fn handle_is_blocked(
+    db: Arc<dyn UserRepository>,
+    user_id: UserID,
+    blocked_id: UserID,
+) -> Result<bool, Error> {
+    match db.get_user_block(&user_id, &blocked_id).await {
+        Ok(_) => Ok(true),
+        Err(devcord_sqlx_utils::error::Error::RowNotFound) => Ok(false),
+        Err(_) => Err(InternalError.into()),
+    }
+}

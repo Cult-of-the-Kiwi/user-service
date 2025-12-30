@@ -27,11 +27,15 @@ use crate::{
 };
 
 fn jwt() -> String {
+    jwt_for("user-1")
+}
+
+fn jwt_for(user_id: &str) -> String {
     static SECRET: &str = "test-secret";
     unsafe { std::env::set_var("JWT_SECRET", SECRET) };
     let claims = Claims {
         exp: (chrono::Utc::now() + chrono::Duration::minutes(5)).timestamp() as u64,
-        user_id: "user-1".to_string(),
+        user_id: user_id.to_string(),
     };
     jsonwebtoken::encode(
         &Header::default(),
@@ -132,7 +136,7 @@ async fn test_update_user_updates_name() {
 #[tokio::test]
 async fn test_friendship_request_and_accept_flow() {
     let (router, repo, ..) = build_router();
-    let requester = jwt();
+    let requester = jwt_for("user-1");
 
     // user-1 -> user-2 request
     let request_response = router
@@ -151,19 +155,7 @@ async fn test_friendship_request_and_accept_flow() {
     assert_eq!(request_response.status(), StatusCode::OK);
 
     // prepare accept token for user-2
-    unsafe {
-        std::env::set_var("JWT_SECRET", "test-secret");
-    }
-    let accept_claims = Claims {
-        exp: (chrono::Utc::now() + chrono::Duration::minutes(5)).timestamp() as u64,
-        user_id: "user-2".to_string(),
-    };
-    let accept_token = jsonwebtoken::encode(
-        &Header::default(),
-        &accept_claims,
-        &EncodingKey::from_secret("test-secret".as_bytes()),
-    )
-    .unwrap();
+    let accept_token = jwt_for("user-2");
 
     let accept_response = router
         .oneshot(
@@ -192,4 +184,201 @@ async fn test_friendship_request_and_accept_flow() {
         .await
         .unwrap();
     assert!(!friendships.is_empty());
+}
+
+#[tokio::test]
+async fn test_delete_friend_request() {
+    let (router, repo, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    // user-1 -> user-2 request
+    let _ = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/request")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // delete request
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/delete")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let remaining = repo
+        .get_friend_requests(
+            &"user-1".to_string(),
+            &FriendRequestRange {
+                from: 0,
+                to: 10,
+                state_filter: None,
+            },
+            &FriendRequestDirection::Sent,
+        )
+        .await
+        .unwrap();
+    assert!(remaining.is_empty());
+}
+
+#[tokio::test]
+async fn test_is_friend_endpoint() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+    let acceptor = jwt_for("user-2");
+
+    // create friend request
+    let _ = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/request")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // accept it
+    let _ = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/accept")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {acceptor}"))
+                .body(Body::from(json!({ "user_id": "user-1" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // check friend
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/is_friend")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::from(
+                    json!({ "id": "user-2", "username": "" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let is_friend: bool = serde_json::from_slice(&body).unwrap();
+    assert!(is_friend);
+}
+
+#[tokio::test]
+async fn test_is_friend_endpoint_returns_false_when_not_friend() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/is_friend")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::from(
+                    json!({ "id": "user-2", "username": "" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let is_friend: bool = serde_json::from_slice(&body).unwrap();
+    assert!(!is_friend);
+}
+
+#[tokio::test]
+async fn test_is_blocked_endpoint() {
+    let (router, ..) = build_router();
+    let blocker = jwt_for("user-1");
+
+    // block user-2
+    let block_response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/blocks/block")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
+                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(block_response.status(), StatusCode::OK);
+
+    // check blocked
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/blocks/is_blocked")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
+                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let is_blocked: bool = serde_json::from_slice(&body).unwrap();
+    assert!(is_blocked);
+}
+
+#[tokio::test]
+async fn test_is_blocked_endpoint_returns_false_when_not_blocked() {
+    let (router, ..) = build_router();
+    let blocker = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/blocks/is_blocked")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
+                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let is_blocked: bool = serde_json::from_slice(&body).unwrap();
+    assert!(!is_blocked);
 }

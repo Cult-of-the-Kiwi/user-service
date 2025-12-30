@@ -6,7 +6,10 @@ use axum::{
     http::{HeaderValue, Method, header},
 };
 use devcord_events::{
-    events::Event,
+    events::{
+        Event,
+        auth::{AuthEvent, UserCreated},
+    },
     publisher::{EventManager, topic::fluvio::FluvioHandler},
 };
 use dotenvy::var;
@@ -15,10 +18,14 @@ use tower_http::{
     cors::CorsLayer,
     trace::TraceLayer,
 };
+use tracing::warn;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::infrastructure::context::db::postgres::{PgOptions, new_pg_pool};
 use crate::{api, application::repositories::user_repository::UserRepository};
+use crate::{
+    domain::models::user::User,
+    infrastructure::context::db::postgres::{PgOptions, new_pg_pool},
+};
 
 #[derive(Clone)]
 pub(crate) struct AppState {
@@ -101,11 +108,11 @@ impl AppBuilder {
         self
     }
 
-    pub fn build(self) -> anyhow::Result<Router> {
-        let state = AppState {
+    pub async fn build(self) -> anyhow::Result<Router> {
+        let state = Arc::new(AppState {
             db: Arc::from(self.db.context("Mising app database")?),
             event_manager: Arc::from(self.event_manager.context("Mising app event manager")?),
-        };
+        });
 
         tracing_subscriber::registry()
             .with(fmt::layer())
@@ -118,7 +125,9 @@ impl AppBuilder {
         if let Some(cors) = self.cors_layer {
             router = router.layer(cors);
         }
-        let router = router.layer(trace_layer).with_state(state.into());
+        let router = router.layer(trace_layer).with_state(state.clone());
+
+        register_event_listeners(state.db.clone(), state.event_manager.clone()).await?;
 
         Ok(router)
     }
@@ -132,5 +141,39 @@ impl AppBuilder {
             .with_cors_layer_env()?
             .with_trace_layer()
             .build()
+            .await
     }
+}
+
+pub(crate) async fn register_event_listeners(
+    db: Arc<dyn UserRepository>,
+    event_manager: Arc<dyn EventManager<Event = Event>>,
+) -> anyhow::Result<()> {
+    let user_created = Event::AuthEvent(AuthEvent::UserSignedUpEvent(UserCreated {
+        id: String::new(),
+        username: String::new(),
+    }));
+
+    event_manager
+        .subscribe(
+            user_created,
+            Box::new(move |event| {
+                let db = db.clone();
+                Box::pin(async move {
+                    if let Event::AuthEvent(AuthEvent::UserSignedUpEvent(payload)) = event {
+                        let user = User {
+                            id: payload.id,
+                            username: payload.username,
+                            created_at: None,
+                        };
+                        if let Err(e) = db.insert_user(&user).await {
+                            warn!("Failed to insert user from auth event: {e:?}");
+                        }
+                    }
+                })
+            }),
+        )
+        .await?;
+
+    Ok(())
 }

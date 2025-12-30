@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::PgPool;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{ContainerPort, WaitFor},

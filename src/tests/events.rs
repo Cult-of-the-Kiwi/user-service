@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use devcord_events::{
     events::{
         Event,
+        auth::{AuthEvent, UserCreated},
         user::{FriendRequestAnswered, FriendRequestCreated, UserEvent, UserUpdated},
     },
     publisher::EventManager,
@@ -12,6 +13,7 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 use crate::{
+    app::register_event_listeners,
     application::repositories::user_repository::UserRepository,
     handlers::{
         friendship::friend_requests::{
@@ -53,6 +55,46 @@ async fn expect_event(rx: &mut mpsc::Receiver<Event>) -> anyhow::Result<Event> {
 
 async fn new_event_manager() -> anyhow::Result<Arc<dyn EventManager<Event = Event>>> {
     Ok(Arc::new(InMemoryEventManager::new()))
+}
+
+#[tokio::test]
+async fn test_user_created_event_inserts_user() -> anyhow::Result<()> {
+    let repo = Arc::new(InMemoryUserRepository::new(Vec::new()));
+    let event_manager = new_event_manager().await?;
+
+    register_event_listeners(repo.clone(), event_manager.clone()).await?;
+
+    let event = Event::AuthEvent(AuthEvent::UserSignedUpEvent(UserCreated {
+        id: "new-user".to_string(),
+        username: "newbie".to_string(),
+    }));
+
+    event_manager.notify(event).await?;
+
+    let inserted = repo.get_user(&"new-user".to_string()).await?;
+    assert_eq!(inserted.username, "newbie");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_user_created_event_is_idempotent() -> anyhow::Result<()> {
+    let repo = Arc::new(InMemoryUserRepository::new(sample_users()));
+    let event_manager = new_event_manager().await?;
+
+    register_event_listeners(repo.clone(), event_manager.clone()).await?;
+
+    let event = Event::AuthEvent(AuthEvent::UserSignedUpEvent(UserCreated {
+        id: "user-1".to_string(),
+        username: "alice".to_string(),
+    }));
+
+    event_manager.notify(event).await?;
+
+    let existing = repo.get_user(&"user-1".to_string()).await?;
+    assert_eq!(existing.username, "alice");
+
+    Ok(())
 }
 
 #[tokio::test]
