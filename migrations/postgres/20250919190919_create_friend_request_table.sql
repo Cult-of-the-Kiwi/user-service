@@ -1,4 +1,3 @@
--- Add migration script here
 CREATE TABLE IF NOT EXISTS friend_requests (
     from_user_id TEXT NOT NULL,
     to_user_id TEXT NOT NULL,

@@ -1,35 +1,63 @@
 use std::sync::Arc;
 
-use axum::{
-    Json,
-    extract::{Query, State},
-    response::IntoResponse,
-};
-use devcord_middlewares::middlewares::auth::Authenticated;
-
 use crate::{
-    app::AppState,
     application::repositories::user_repository::UserRepository,
-    domain::models::{block::Block, range::Range},
+    domain::{
+        errors::{
+            block::BlockError::{BlockAlreadyExists, BlockDoesNotExist},
+            domain::DomainError::InternalError,
+            user::UserError::UserDoesNotExist,
+            Error,
+        },
+        models::{block::Block, range::Range},
+        types::UserID,
+    },
 };
 
-pub async fn block<T: UserRepository>(
-    State(state): State<Arc<AppState<T>>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
-    Json(mut request): Json<Block>,
-) -> impl IntoResponse {
+pub async fn handle_block(
+    db: Arc<dyn UserRepository>,
+    from_user_id: UserID,
+    to_user_id: UserID,
+) -> Result<(), Error> {
+    let request = Block {
+        from_user_id,
+        to_user_id,
+        created_at: None,
+    };
+
+    db.insert_block(&request).await.map_err(|e| match e {
+        devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+        devcord_sqlx_utils::error::Error::AlreadyExists => BlockAlreadyExists.into(),
+        _ => InternalError.into(),
+    })
 }
 
-pub async fn unblock<T: UserRepository>(
-    State(state): State<Arc<AppState<T>>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
-    Json(mut request): Json<Block>,
-) -> impl IntoResponse {
+pub async fn handle_unblock(
+    db: Arc<dyn UserRepository>,
+    from_user_id: UserID,
+    to_user_id: UserID,
+) -> Result<(), Error> {
+    let request = Block {
+        from_user_id,
+        to_user_id,
+        created_at: None,
+    };
+
+    db.delete_block(&request).await.map_err(|e| match e {
+        devcord_sqlx_utils::error::Error::RowNotFound => BlockDoesNotExist.into(),
+        _ => InternalError.into(),
+    })
 }
 
-pub async fn get_blocks<T: UserRepository>(
-    State(state): State<Arc<AppState<T>>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
-    Query(range): Query<Range>,
-) -> impl IntoResponse {
+pub async fn handle_get_blocks(
+    db: Arc<dyn UserRepository>,
+    user_id: UserID,
+    range: Range,
+) -> Result<Vec<Block>, Error> {
+    db.get_user_blocks(&user_id, &range)
+        .await
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+            _ => InternalError.into(),
+        })
 }

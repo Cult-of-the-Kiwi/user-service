@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+use devcord_sqlx_utils::error::Error;
 use sqlx::{Pool, Postgres, QueryBuilder};
 
 use crate::{
@@ -15,9 +17,10 @@ use crate::{
     },
 };
 
+#[async_trait]
 impl UserRepository for Pool<Postgres> {
-    async fn get_user(&self, user_id: &UserID) -> Option<User> {
-        sqlx::query_as(
+    async fn get_user(&self, user_id: &UserID) -> Result<User, Error> {
+        let user = sqlx::query_as(
             "
         SELECT username, id, created_at 
         FROM users
@@ -26,12 +29,13 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(user_id)
         .fetch_one(self)
-        .await
-        .ok()
+        .await?;
+
+        Ok(user)
     }
 
-    async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Option<User> {
-        sqlx::query_as(
+    async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Result<User, Error> {
+        let user = sqlx::query_as(
             "
         SELECT u.username, u.id, u.created_at
         FROM users u
@@ -43,12 +47,13 @@ impl UserRepository for Pool<Postgres> {
         .bind(user_id)
         .bind(friend_id)
         .fetch_one(self)
-        .await
-        .ok()
+        .await?;
+
+        Ok(user)
     }
 
-    async fn get_friend_request(&self, request: &FriendRequest) -> Option<FriendRequest> {
-        sqlx::query_as(
+    async fn get_friend_request(&self, request: &FriendRequest) -> Result<FriendRequest, Error> {
+        let friend_request = sqlx::query_as(
             "
         SELECT from_user_id, to_user_id, created_at, state
         FROM friend_requests
@@ -58,8 +63,9 @@ impl UserRepository for Pool<Postgres> {
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
         .fetch_one(self)
-        .await
-        .ok()
+        .await?;
+
+        Ok(friend_request)
     }
 
     async fn get_friend_requests(
@@ -67,7 +73,7 @@ impl UserRepository for Pool<Postgres> {
         user_id: &UserID,
         range: &FriendRequestRange,
         direction: &FriendRequestDirection,
-    ) -> Option<Vec<FriendRequest>> {
+    ) -> Result<Vec<FriendRequest>, Error> {
         let mut qb = QueryBuilder::new(
             "
         SELECT from_user_id, to_user_id, created_at, state
@@ -87,23 +93,25 @@ impl UserRepository for Pool<Postgres> {
             qb.push(" AND state = ").push_bind(format!("{}%", filter));
         }
 
-        qb.push(
-            " 
+        let friend_requests = qb
+            .push(
+                " 
         ORDER BY created_at DESC
         OFFSET 
     ",
-        )
-        .push_bind(range.from)
-        .push(" LIMIT ")
-        .push_bind((range.to - range.from).max(0))
-        .build_query_as()
-        .fetch_all(self)
-        .await
-        .ok()
+            )
+            .push_bind(range.from)
+            .push(" LIMIT ")
+            .push_bind((range.to - range.from).max(0))
+            .build_query_as()
+            .fetch_all(self)
+            .await?;
+
+        Ok(friend_requests)
     }
 
-    async fn get_user_friends(&self, user_id: &UserID, range: &Range) -> Option<Vec<User>> {
-        sqlx::query_as(
+    async fn get_user_friends(&self, user_id: &UserID, range: &Range) -> Result<Vec<User>, Error> {
+        let friends = sqlx::query_as(
             "
         SELECT u.id, u.username, u.created_at
         FROM users u
@@ -119,12 +127,13 @@ impl UserRepository for Pool<Postgres> {
         .bind(range.from)
         .bind((range.to - range.from).max(0))
         .fetch_all(self)
-        .await
-        .ok()
+        .await?;
+
+        Ok(friends)
     }
 
-    async fn get_user_block(&self, user_id: &UserID, blocked_id: &UserID) -> Option<User> {
-        sqlx::query_as(
+    async fn get_user_block(&self, user_id: &UserID, blocked_id: &UserID) -> Result<User, Error> {
+        let user = sqlx::query_as(
             "
         SELECT username, id, created_at
         FROM users u
@@ -136,12 +145,13 @@ impl UserRepository for Pool<Postgres> {
         .bind(user_id)
         .bind(blocked_id)
         .fetch_one(self)
-        .await
-        .ok()
+        .await?;
+
+        Ok(user)
     }
 
-    async fn get_user_blocks(&self, user_id: &UserID, range: &Range) -> Option<Vec<Block>> {
-        sqlx::query_as(
+    async fn get_user_blocks(&self, user_id: &UserID, range: &Range) -> Result<Vec<Block>, Error> {
+        let blocks = sqlx::query_as(
             "
             SELECT from_user_id, to_user_id, created_at
             FROM blocks
@@ -155,14 +165,12 @@ impl UserRepository for Pool<Postgres> {
         .bind(range.from)
         .bind((range.to - range.from).max(0))
         .fetch_all(self)
-        .await
-        .ok()
+        .await?;
+
+        Ok(blocks)
     }
 
-    async fn insert_friend_request(
-        &self,
-        request: &FriendRequest,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn insert_friend_request(&self, request: &FriendRequest) -> Result<(), Error> {
         sqlx::query(
             "
         INSERT
@@ -178,11 +186,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn insert_friendship(
-        &self,
-        user_a: &UserID,
-        user_b: &UserID,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn insert_friendship(&self, user_a: &UserID, user_b: &UserID) -> Result<(), Error> {
         sqlx::query(
             "
         INSERT
@@ -198,7 +202,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn insert_block(&self, request: &Block) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn insert_block(&self, request: &Block) -> Result<(), Error> {
         sqlx::query(
             "
         INSERT
@@ -214,7 +218,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn insert_user(&self, user: &User) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn insert_user(&self, user: &User) -> Result<(), Error> {
         sqlx::query(
             "
             INSERT
@@ -232,10 +236,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn update_friend_request(
-        &self,
-        request: &FriendRequest,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn update_friend_request(&self, request: &FriendRequest) -> Result<(), Error> {
         sqlx::query(
             "
         UPDATE friend_requests
@@ -252,11 +253,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn update_user(
-        &self,
-        user_id: &UserID,
-        update: &UpdateUser,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn update_user(&self, user_id: &UserID, update: &UpdateUser) -> Result<(), Error> {
         if update.is_empty() {
             return Ok(());
         }
@@ -286,7 +283,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn delete_block(&self, block: &Block) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn delete_block(&self, block: &Block) -> Result<(), Error> {
         sqlx::query(
             "
             DELETE
@@ -302,10 +299,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn delete_friendship(
-        &self,
-        friendship: &Friendship,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn delete_friendship(&self, friendship: &Friendship) -> Result<(), Error> {
         sqlx::query(
             "
             DELETE
@@ -321,10 +315,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn delete_friend_request(
-        &self,
-        request: &FriendRequest,
-    ) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn delete_friend_request(&self, request: &FriendRequest) -> Result<(), Error> {
         sqlx::query(
             "
             DELETE
@@ -341,7 +332,7 @@ impl UserRepository for Pool<Postgres> {
         Ok(())
     }
 
-    async fn delete_user(&self, user: &User) -> Result<(), devcord_sqlx_utils::error::Error> {
+    async fn delete_user(&self, user: &User) -> Result<(), Error> {
         sqlx::query(
             "
             DELETE

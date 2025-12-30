@@ -1,3 +1,4 @@
+use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -13,5 +14,11 @@ pub(crate) struct User {
 impl PartialEq for User {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+    }
+}
+
+impl IntoResponse for User {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::OK, self).into_response()
     }
 }

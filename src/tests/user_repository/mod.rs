@@ -56,7 +56,7 @@ async fn create_block<T: UserRepository>(db: &T, from: &User, to: &User) -> Bloc
 pub async fn insert_user_ok<T: UserRepository>(db: &T) {
     let u = create_user(db, "user-1", "Alice").await;
     let fetched = db.get_user(&u.id).await;
-    assert_eq!(Some(u), fetched);
+    assert_eq!(fetched, Ok(u));
 }
 
 pub async fn insert_user_duplicate_id<T: UserRepository>(db: &T) {
@@ -86,7 +86,7 @@ pub async fn update_user_name<T: UserRepository>(db: &T) {
     };
     assert!(db.update_user(&u.id, &upd).await.is_ok());
     u.username = "NewName".into();
-    assert_eq!(db.get_user(&u.id).await, Some(u));
+    assert_eq!(db.get_user(&u.id).await, Ok(u));
 }
 
 pub async fn update_user_name_without_changing_others<T: UserRepository>(db: &T) {
@@ -97,14 +97,14 @@ pub async fn update_user_name_without_changing_others<T: UserRepository>(db: &T)
     };
     assert!(db.update_user(&u.id, &upd).await.is_ok());
     u.username = "NewName".into();
-    assert_eq!(db.get_user(&u.id).await, Some(u));
-    assert_eq!(db.get_user(&other_u.id).await, Some(other_u));
+    assert_eq!(db.get_user(&u.id).await, Ok(u));
+    assert_eq!(db.get_user(&other_u.id).await, Ok(other_u));
 }
 
 pub async fn delete_user_ok<T: UserRepository>(db: &T) {
     let u = create_user(db, "user-del", "Temp").await;
     assert!(db.delete_user(&u).await.is_ok());
-    assert_eq!(db.get_user(&u.id).await, None);
+    assert!(db.get_user(&u.id).await.is_err());
 }
 
 // ---------- FRIEND REQUEST TESTS ----------
@@ -112,7 +112,7 @@ pub async fn insert_friend_request_ok<T: UserRepository>(db: &T) {
     let a = create_user(db, "user-a", "Alice").await;
     let b = create_user(db, "user-b", "Bob").await;
     let req = create_friend_request(db, &a, &b).await;
-    assert_eq!(db.get_friend_request(&req).await, Some(req));
+    assert_eq!(db.get_friend_request(&req).await, Ok(req));
 }
 
 pub async fn insert_friend_request_duplicate<T: UserRepository>(db: &T) {
@@ -130,7 +130,7 @@ pub async fn delete_friend_request_ok<T: UserRepository>(db: &T) {
     let b = create_user(db, "user-b", "Bob").await;
     let req = create_friend_request(db, &a, &b).await;
     assert!(db.delete_friend_request(&req).await.is_ok());
-    assert_eq!(db.get_friend_request(&req).await, None);
+    assert!(db.get_friend_request(&req).await.is_err());
 }
 
 // ---------- FRIENDSHIP TESTS ----------
@@ -139,7 +139,7 @@ pub async fn insert_friendship_ok<T: UserRepository>(db: &T) {
     let b = create_user(db, "user-b", "Bob").await;
     create_friendship(db, &a, &b).await;
     let f = db.get_user_friend(&a.id, &b.id).await;
-    assert_eq!(Some(b), f);
+    assert_eq!(Ok(b), f);
 }
 
 pub async fn delete_friendship_ok<T: UserRepository>(db: &T) {
@@ -147,7 +147,7 @@ pub async fn delete_friendship_ok<T: UserRepository>(db: &T) {
     let b = create_user(db, "user-b", "Bob").await;
     let fs = create_friendship(db, &a, &b).await;
     assert!(db.delete_friendship(&fs).await.is_ok());
-    assert_eq!(db.get_user_friend(&a.id, &b.id).await, None);
+    assert!(db.get_user_friend(&a.id, &b.id).await.is_err());
 }
 
 pub async fn get_friendships<T: UserRepository>(db: &T) {
@@ -162,7 +162,7 @@ pub async fn get_friendships<T: UserRepository>(db: &T) {
     create_friendship(db, &a, &e).await;
     let range = Range { from: 0, to: 5 };
     let friend_list = db.get_user_friends(&a.id, &range).await;
-    assert_eq!(Some(vec![b, c, d, e]), friend_list);
+    assert_eq!(Ok(vec![b, c, d, e]), friend_list);
 }
 
 // ---------- BLOCK TESTS ----------

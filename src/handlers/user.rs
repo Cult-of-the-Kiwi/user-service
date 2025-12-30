@@ -1,23 +1,30 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::State, response::IntoResponse};
-use devcord_middlewares::middlewares::auth::Authenticated;
-
 use crate::{
-    app::AppState,
     application::repositories::user_repository::UserRepository,
-    domain::models::{update_user::UpdateUser, user::User},
+    domain::{
+        errors::{Error, domain::DomainError::InternalError, user::UserError::UserDoesNotExist},
+        models::{update_user::UpdateUser, user::User},
+        types::UserID,
+    },
 };
 
-pub async fn update<T: UserRepository>(
-    State(state): State<Arc<AppState<T>>>,
-    Authenticated { claims, jwt: _ }: Authenticated,
-    Json(request): Json<UpdateUser>,
-) -> impl IntoResponse {
+pub async fn handle_update_user(
+    db: Arc<dyn UserRepository>,
+    request: UpdateUser,
+    user_id: UserID,
+) -> Result<(), Error> {
+    db.update_user(&user_id, &request)
+        .await
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+            _ => InternalError.into(),
+        })
 }
 
-pub async fn get_user<T: UserRepository>(
-    State(state): State<Arc<AppState<T>>>,
-    Json(user): Json<User>,
-) -> impl IntoResponse {
+pub async fn handle_get_user(db: Arc<dyn UserRepository>, user_id: UserID) -> Result<User, Error> {
+    db.get_user(&user_id).await.map_err(|e| match e {
+        devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+        _ => InternalError.into(),
+    })
 }
