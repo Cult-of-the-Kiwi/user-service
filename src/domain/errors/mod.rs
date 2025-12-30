@@ -1,4 +1,3 @@
-pub(crate) mod auth;
 pub(crate) mod block;
 pub(crate) mod domain;
 pub(crate) mod friend_request;
@@ -11,8 +10,6 @@ use thiserror::Error;
 pub(crate) enum Error {
     #[error("User error: {0}")]
     User(user::UserError),
-    #[error("Authentication error: {0}")]
-    Auth(auth::AuthError),
     #[error("Domain error: {0}")]
     Domain(domain::DomainError),
     #[error("Friend request error: {0}")]
@@ -25,7 +22,6 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response<axum::body::Body> {
         match self {
             Error::User(e) => e.into_response(),
-            Error::Auth(e) => e.into_response(),
             Error::Domain(e) => e.into_response(),
             Error::FriendRequest(e) => e.into_response(),
             Error::Block(e) => e.into_response(),
@@ -36,11 +32,6 @@ impl IntoResponse for Error {
 impl Into<Error> for user::UserError {
     fn into(self) -> Error {
         Error::User(self)
-    }
-}
-impl Into<Error> for auth::AuthError {
-    fn into(self) -> Error {
-        Error::Auth(self)
     }
 }
 impl Into<Error> for domain::DomainError {

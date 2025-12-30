@@ -23,7 +23,13 @@ pub async fn request_friend(
     Json(mut request): Json<FriendRequest>,
 ) -> impl IntoResponse {
     request.from_user_id = claims.user_id;
-    handle_request_friend(state.db.clone(), request.from_user_id, request.to_user_id).await
+    handle_request_friend(
+        state.db.clone(),
+        state.event_manager.clone(),
+        request.from_user_id,
+        request.to_user_id,
+    )
+    .await
 }
 
 pub async fn accept_request(
@@ -32,7 +38,13 @@ pub async fn accept_request(
     Json(request): Json<FriendRequest>,
 ) -> impl IntoResponse {
     let sender_id = request.to_user_id;
-    handle_accept_request(state.db.clone(), claims.user_id, sender_id).await
+    handle_accept_request(
+        state.db.clone(),
+        state.event_manager.clone(),
+        claims.user_id,
+        sender_id,
+    )
+    .await
 }
 
 pub async fn reject_request(
@@ -41,7 +53,13 @@ pub async fn reject_request(
     Json(request): Json<FriendRequest>,
 ) -> impl IntoResponse {
     let sender_id = request.to_user_id;
-    handle_reject_request(state.db.clone(), claims.user_id, sender_id).await
+    handle_reject_request(
+        state.db.clone(),
+        state.event_manager.clone(),
+        claims.user_id,
+        sender_id,
+    )
+    .await
 }
 
 pub async fn get_requests_sent(

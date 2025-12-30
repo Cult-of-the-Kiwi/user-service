@@ -37,7 +37,7 @@ impl Display for FriendRequestState {
     }
 }
 
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
+#[derive(FromRow, Debug, Default, Deserialize, Serialize, Clone)]
 pub(crate) struct FriendRequest {
     #[serde(skip_deserializing, rename(serialize = "sender_id"))]
     pub from_user_id: UserID,
@@ -62,15 +62,6 @@ impl FriendRequest {
 
     pub fn reject(&mut self) {
         self.state = FriendRequestState::Rejected;
-    }
-
-    pub fn inverted(&self) -> FriendRequest {
-        FriendRequest {
-            from_user_id: self.to_user_id.clone(),
-            to_user_id: self.from_user_id.clone(),
-            created_at: self.created_at,
-            state: self.state,
-        }
     }
 
     pub fn is_pending(&self) -> bool {

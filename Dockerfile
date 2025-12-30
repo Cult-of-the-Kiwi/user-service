@@ -1,9 +1,10 @@
-FROM rust:1.87 AS builder
+FROM rust:1.88 AS builder
 
 WORKDIR /usr/src/app
 
 COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./src ./src
+COPY ./migrations ./migrations
 
 ARG BUILD_MODE=release
 

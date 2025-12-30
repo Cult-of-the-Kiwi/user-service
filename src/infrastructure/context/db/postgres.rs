@@ -17,7 +17,7 @@ pub async fn new_pg_pool<'a>(config: &'a PgOptions<'a>) -> anyhow::Result<PgPool
         .connect(config.url)
         .await?;
 
-    MIGRATOR.run(&db).await;
+    MIGRATOR.run(&db).await.unwrap();
 
     Ok(db)
 }

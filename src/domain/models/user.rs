@@ -1,10 +1,14 @@
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::domain::types::{Time, UserID, Username};
 
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
+#[derive(FromRow, Debug, Default, Deserialize, Serialize, Clone)]
 pub(crate) struct User {
     pub username: Username,
     pub id: UserID,
@@ -18,7 +22,7 @@ impl PartialEq for User {
 }
 
 impl IntoResponse for User {
-    fn into_response(self) -> axum::response::Response {
-        (StatusCode::OK, self).into_response()
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
     }
 }

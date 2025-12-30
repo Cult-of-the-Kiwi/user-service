@@ -14,7 +14,13 @@ pub async fn update_user(
     Authenticated { claims, jwt: _ }: Authenticated,
     Json(request): Json<UpdateUser>,
 ) -> impl IntoResponse {
-    handle_update_user(state.db.clone(), request, claims.user_id).await
+    handle_update_user(
+        state.db.clone(),
+        state.event_manager.clone(),
+        request,
+        claims.user_id,
+    )
+    .await
 }
 
 pub async fn get_user(

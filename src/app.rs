@@ -10,7 +10,6 @@ use devcord_events::{
     publisher::{EventManager, topic::fluvio::FluvioHandler},
 };
 use dotenvy::var;
-use sqlx::postgres::PgPoolOptions;
 use tower_http::{
     classify::{ServerErrorsAsFailures, SharedClassifier},
     cors::CorsLayer,
@@ -18,6 +17,7 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::infrastructure::context::db::postgres::{PgOptions, new_pg_pool};
 use crate::{api, application::repositories::user_repository::UserRepository};
 
 #[derive(Clone)]
@@ -54,15 +54,14 @@ impl AppBuilder {
             .parse()
             .expect("DB_POOL_TIMEOUT_SECS must be a number");
 
-        let db = PgPoolOptions::new()
-            .max_connections(max_conns)
-            .acquire_timeout(Duration::from_secs(db_timeout))
-            .connect(
-                var("DATABASE_URL")
-                    .expect("DATABASE_URL env not set")
-                    .trim(),
-            )
-            .await?;
+        let db = new_pg_pool(&PgOptions {
+            url: var("DATABASE_URL")
+                .expect("DATABASE_URL env not set")
+                .trim(),
+            max_conns,
+            acquire_timeout: Duration::from_secs(db_timeout),
+        })
+        .await?;
 
         self.db = Some(Box::new(db));
 

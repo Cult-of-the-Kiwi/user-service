@@ -1,5 +1,13 @@
 use std::sync::Arc;
 
+use devcord_events::{
+    events::{
+        Event,
+        user::{FriendRequestAnswered, FriendRequestCreated, UserEvent},
+    },
+    publisher::EventManager,
+};
+
 use crate::{
     application::repositories::user_repository::UserRepository,
     domain::{
@@ -18,6 +26,7 @@ use crate::{
 
 pub async fn handle_request_friend(
     db: Arc<dyn UserRepository>,
+    event_manager: Arc<dyn EventManager<Event = Event>>,
     from_user_id: UserID,
     to_user_id: UserID,
 ) -> Result<(), Error> {
@@ -34,15 +43,32 @@ pub async fn handle_request_friend(
             devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
             devcord_sqlx_utils::error::Error::AlreadyExists => FriendRequestAlreadyExists.into(),
             _ => InternalError.into(),
-        })
+        })?;
+
+    let sender = db
+        .get_user(&request.from_user_id)
+        .await
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+            _ => InternalError.into(),
+        })?;
+
+    let event = Event::UserEvent(UserEvent::FriendRequestCreatedEvent(FriendRequestCreated {
+        from_username: sender.username,
+    }));
+    event_manager
+        .notify(event)
+        .await
+        .map_err(|_| InternalError.into())
 }
 
 pub async fn handle_accept_request(
     db: Arc<dyn UserRepository>,
+    event_manager: Arc<dyn EventManager<Event = Event>>,
     receiver_id: UserID,
     sender_id: UserID,
 ) -> Result<(), Error> {
-    let mut request = FriendRequest {
+    let request = FriendRequest {
         from_user_id: sender_id,
         to_user_id: receiver_id,
         created_at: None,
@@ -72,15 +98,35 @@ pub async fn handle_accept_request(
         .map_err(|e| match e {
             devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
             _ => InternalError.into(),
-        })
+        })?;
+
+    let sender = db
+        .get_user(&existing.from_user_id)
+        .await
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+            _ => InternalError.into(),
+        })?;
+
+    let event = Event::UserEvent(UserEvent::FriendRequestAnsweredEvent(
+        FriendRequestAnswered {
+            from_username: sender.username,
+            accepted: true,
+        },
+    ));
+    event_manager
+        .notify(event)
+        .await
+        .map_err(|_| InternalError.into())
 }
 
 pub async fn handle_reject_request(
     db: Arc<dyn UserRepository>,
+    event_manager: Arc<dyn EventManager<Event = Event>>,
     receiver_id: UserID,
     sender_id: UserID,
 ) -> Result<(), Error> {
-    let mut request = FriendRequest {
+    let request = FriendRequest {
         from_user_id: sender_id,
         to_user_id: receiver_id,
         created_at: None,
@@ -103,7 +149,26 @@ pub async fn handle_reject_request(
         .map_err(|e| match e {
             devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
             _ => InternalError.into(),
-        })
+        })?;
+
+    let sender = db
+        .get_user(&existing.from_user_id)
+        .await
+        .map_err(|e| match e {
+            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
+            _ => InternalError.into(),
+        })?;
+
+    let event = Event::UserEvent(UserEvent::FriendRequestAnsweredEvent(
+        FriendRequestAnswered {
+            from_username: sender.username,
+            accepted: false,
+        },
+    ));
+    event_manager
+        .notify(event)
+        .await
+        .map_err(|_| InternalError.into())
 }
 
 pub async fn handle_get_requests_sent(
