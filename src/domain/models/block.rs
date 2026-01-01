@@ -13,6 +13,16 @@ pub(crate) struct Block {
     pub created_at: Option<Time>,
 }
 
+impl Block {
+    pub fn new(from_user_id: UserID, to_user_id: UserID) -> Self {
+        Self {
+            from_user_id,
+            to_user_id,
+            created_at: None,
+        }
+    }
+}
+
 impl PartialEq for Block {
     fn eq(&self, other: &Self) -> bool {
         self.from_user_id == other.from_user_id && self.to_user_id == other.to_user_id

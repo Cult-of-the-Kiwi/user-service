@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::State, response::IntoResponse};
+use axum::{
+    Json,
+    extract::{Path, State},
+    response::IntoResponse,
+};
 use devcord_middlewares::middlewares::auth::Authenticated;
 
 use crate::{
     app::AppState,
-    domain::models::{update_user::UpdateUser, user::User},
+    domain::{models::update_user::UpdateUser, types::UserID},
     handlers::user::{handle_get_user, handle_update_user},
 };
 
@@ -15,7 +19,7 @@ pub async fn update_user(
     Json(request): Json<UpdateUser>,
 ) -> impl IntoResponse {
     handle_update_user(
-        state.db.clone(),
+        &state.db,
         state.event_manager.clone(),
         request,
         claims.user_id,
@@ -25,7 +29,7 @@ pub async fn update_user(
 
 pub async fn get_user(
     State(state): State<Arc<AppState>>,
-    Json(user): Json<User>,
+    Path(user): Path<UserID>,
 ) -> impl IntoResponse {
-    handle_get_user(state.db.clone(), user.id).await
+    handle_get_user(&state.db, user).await
 }

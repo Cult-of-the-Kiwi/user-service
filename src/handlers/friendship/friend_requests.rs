@@ -15,6 +15,7 @@ use crate::{
             Error,
             domain::DomainError::InternalError,
             friend_request::FriendRequestError::{
+                CannotAcceptSelf, CannotDeleteSelf, CannotRejectSelf, CannotSendToSelf,
                 FriendRequestAlreadyExists, FriendRequestAlreadyHandled, FriendRequestDoesNotExist,
             },
             user::UserError::UserDoesNotExist,
@@ -27,11 +28,15 @@ use crate::{
 };
 
 pub async fn handle_request_friend(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     event_manager: Arc<dyn EventManager<Event = Event>>,
     from_user_id: UserID,
     to_user_id: UserID,
 ) -> Result<(), Error> {
+    if from_user_id == to_user_id {
+        return Err(CannotSendToSelf.into());
+    }
+
     let request = FriendRequest {
         from_user_id,
         to_user_id,
@@ -65,11 +70,15 @@ pub async fn handle_request_friend(
 }
 
 pub async fn handle_accept_request(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     event_manager: Arc<dyn EventManager<Event = Event>>,
     receiver_id: UserID,
     sender_id: UserID,
 ) -> Result<(), Error> {
+    if receiver_id == sender_id {
+        return Err(CannotAcceptSelf.into());
+    }
+
     let request = FriendRequest {
         from_user_id: sender_id,
         to_user_id: receiver_id,
@@ -123,11 +132,15 @@ pub async fn handle_accept_request(
 }
 
 pub async fn handle_reject_request(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     event_manager: Arc<dyn EventManager<Event = Event>>,
     receiver_id: UserID,
     sender_id: UserID,
 ) -> Result<(), Error> {
+    if receiver_id == sender_id {
+        return Err(CannotRejectSelf.into());
+    }
+
     let request = FriendRequest {
         from_user_id: sender_id,
         to_user_id: receiver_id,
@@ -174,10 +187,14 @@ pub async fn handle_reject_request(
 }
 
 pub async fn handle_delete_request(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     sender_id: UserID,
     recipient_id: UserID,
 ) -> Result<(), Error> {
+    if sender_id == recipient_id {
+        return Err(CannotDeleteSelf.into());
+    }
+
     let request = FriendRequest {
         from_user_id: sender_id,
         to_user_id: recipient_id,
@@ -194,7 +211,7 @@ pub async fn handle_delete_request(
 }
 
 pub async fn handle_get_requests_sent(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     range: FriendRequestRange,
 ) -> Result<Vec<FriendRequest>, Error> {
@@ -204,7 +221,7 @@ pub async fn handle_get_requests_sent(
 }
 
 pub async fn handle_get_requests_received(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     range: FriendRequestRange,
 ) -> Result<Vec<FriendRequest>, Error> {

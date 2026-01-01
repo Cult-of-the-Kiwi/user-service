@@ -5,7 +5,9 @@ use crate::{
     domain::{
         errors::{
             Error,
-            block::BlockError::{BlockAlreadyExists, BlockDoesNotExist},
+            block::BlockError::{
+                BlockAlreadyExists, BlockDoesNotExist, CannotBlockSelf, CannotUnblockSelf,
+            },
             domain::DomainError::InternalError,
             user::UserError::UserDoesNotExist,
         },
@@ -15,10 +17,14 @@ use crate::{
 };
 
 pub async fn handle_block(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     from_user_id: UserID,
     to_user_id: UserID,
 ) -> Result<(), Error> {
+    if from_user_id == to_user_id {
+        return Err(CannotBlockSelf.into());
+    }
+
     let request = Block {
         from_user_id,
         to_user_id,
@@ -33,10 +39,14 @@ pub async fn handle_block(
 }
 
 pub async fn handle_unblock(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     from_user_id: UserID,
     to_user_id: UserID,
 ) -> Result<(), Error> {
+    if from_user_id == to_user_id {
+        return Err(CannotUnblockSelf.into());
+    }
+
     let request = Block {
         from_user_id,
         to_user_id,
@@ -50,7 +60,7 @@ pub async fn handle_unblock(
 }
 
 pub async fn handle_get_blocks(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     range: Range,
 ) -> Result<Vec<Block>, Error> {
@@ -63,11 +73,11 @@ pub async fn handle_get_blocks(
 }
 
 pub async fn handle_is_blocked(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     blocked_id: UserID,
 ) -> Result<bool, Error> {
-    match db.get_user_block(&user_id, &blocked_id).await {
+    match db.get_user_if_blocked(&user_id, &blocked_id).await {
         Ok(_) => Ok(true),
         Err(devcord_sqlx_utils::error::Error::RowNotFound) => Ok(false),
         Err(_) => Err(InternalError.into()),

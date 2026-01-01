@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS friendships (
     from_user_id TEXT NOT NULL,
     to_user_id TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT friendships_pkey PRIMARY KEY (from_user_id, to_user_id),
     CONSTRAINT fk_from_user FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,

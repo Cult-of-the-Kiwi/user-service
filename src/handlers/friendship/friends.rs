@@ -3,14 +3,17 @@ use std::sync::Arc;
 use crate::{
     application::repositories::user_repository::UserRepository,
     domain::{
-        errors::{Error, domain::DomainError::InternalError, user::UserError::UserDoesNotExist},
+        errors::{
+            Error, domain::DomainError::InternalError,
+            friendship::FriendshipError::CannotRemoveSelf, user::UserError::UserDoesNotExist,
+        },
         models::{friendship::Friendship, range::Range, user::User},
         types::UserID,
     },
 };
 
 pub async fn handle_get_friends(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     range: Range,
 ) -> Result<Vec<User>, Error> {
@@ -23,10 +26,14 @@ pub async fn handle_get_friends(
 }
 
 pub async fn handle_remove_friend(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     friend_id: UserID,
 ) -> Result<(), Error> {
+    if user_id == friend_id {
+        return Err(CannotRemoveSelf.into());
+    }
+
     let friendship = Friendship {
         from_user_id: user_id.clone(),
         to_user_id: friend_id.clone(),
@@ -41,11 +48,11 @@ pub async fn handle_remove_friend(
 }
 
 pub async fn handle_is_friend(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     user_id: UserID,
     friend_id: UserID,
 ) -> Result<bool, Error> {
-    match db.get_user_friend(&user_id, &friend_id).await {
+    match db.get_user_if_friend(&user_id, &friend_id).await {
         Ok(_) => Ok(true),
         Err(devcord_sqlx_utils::error::Error::RowNotFound) => Ok(false),
         Err(_) => Err(InternalError.into()),

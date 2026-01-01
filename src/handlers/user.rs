@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub async fn handle_update_user(
-    db: Arc<dyn UserRepository>,
+    db: &Arc<dyn UserRepository>,
     event_manager: Arc<dyn EventManager<Event = Event>>,
     request: UpdateUser,
     user_id: UserID,
@@ -37,7 +37,7 @@ pub async fn handle_update_user(
         .map_err(|_| InternalError.into())
 }
 
-pub async fn handle_get_user(db: Arc<dyn UserRepository>, user_id: UserID) -> Result<User, Error> {
+pub async fn handle_get_user(db: &Arc<dyn UserRepository>, user_id: UserID) -> Result<User, Error> {
     let result = db.get_user(&user_id).await.map_err(|e| match e {
         devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
         _ => InternalError.into(),

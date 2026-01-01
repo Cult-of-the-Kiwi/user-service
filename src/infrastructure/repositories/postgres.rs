@@ -34,7 +34,11 @@ impl UserRepository for Pool<Postgres> {
         Ok(user)
     }
 
-    async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Result<User, Error> {
+    async fn get_user_if_friend(
+        &self,
+        user_id: &UserID,
+        friend_id: &UserID,
+    ) -> Result<User, Error> {
         let user = sqlx::query_as(
             "
         SELECT u.username, u.id, u.created_at
@@ -132,7 +136,11 @@ impl UserRepository for Pool<Postgres> {
         Ok(friends)
     }
 
-    async fn get_user_block(&self, user_id: &UserID, blocked_id: &UserID) -> Result<User, Error> {
+    async fn get_user_if_blocked(
+        &self,
+        user_id: &UserID,
+        blocked_id: &UserID,
+    ) -> Result<User, Error> {
         let user = sqlx::query_as(
             "
         SELECT username, id, created_at

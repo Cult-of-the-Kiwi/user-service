@@ -11,6 +11,10 @@ pub(crate) enum BlockError {
     BlockDoesNotExist,
     #[error("Block already exists")]
     BlockAlreadyExists,
+    #[error("You cannot block yourself")]
+    CannotBlockSelf,
+    #[error("You cannot unblock yourself")]
+    CannotUnblockSelf,
 }
 
 impl IntoResponse for BlockError {
@@ -21,6 +25,9 @@ impl IntoResponse for BlockError {
             }
             BlockError::BlockAlreadyExists => {
                 (StatusCode::CONFLICT, self.to_string()).into_response()
+            }
+            BlockError::CannotBlockSelf | BlockError::CannotUnblockSelf => {
+                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
             }
         }
     }

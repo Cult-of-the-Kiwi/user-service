@@ -60,15 +60,6 @@ fn build_router() -> (
     (router, repo, events)
 }
 
-fn json_request(method: Method, uri: &str, body: serde_json::Value) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body.to_string()))
-        .unwrap()
-}
-
 #[tokio::test]
 async fn test_health_works() {
     let (router, ..) = build_router();
@@ -84,18 +75,21 @@ async fn test_health_works() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "Long life to the allmighty turbofish");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload, json!({ "status": "ok" }));
 }
 
 #[tokio::test]
 async fn test_get_user_returns_user() {
     let (router, ..) = build_router();
     let response = router
-        .oneshot(json_request(
-            Method::GET,
-            "/",
-            json!({ "id": "user-1", "username": "" }),
-        ))
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/user-1")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -138,33 +132,29 @@ async fn test_friendship_request_and_accept_flow() {
     let (router, repo, ..) = build_router();
     let requester = jwt_for("user-1");
 
-    // user-1 -> user-2 request
     let request_response = router
         .clone()
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/friendship/request")
-                .header(header::CONTENT_TYPE, "application/json")
+                .uri("/friendship/requests/user-2")
                 .header(header::AUTHORIZATION, format!("Bearer {requester}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(request_response.status(), StatusCode::OK);
 
-    // prepare accept token for user-2
     let accept_token = jwt_for("user-2");
 
     let accept_response = router
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/friendship/accept")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::PUT)
+                .uri("/friendship/requests/user-1/accept")
                 .header(header::AUTHORIZATION, format!("Bearer {accept_token}"))
-                .body(Body::from(json!({ "user_id": "user-1" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -191,30 +181,26 @@ async fn test_delete_friend_request() {
     let (router, repo, ..) = build_router();
     let requester = jwt_for("user-1");
 
-    // user-1 -> user-2 request
     let _ = router
         .clone()
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/friendship/request")
-                .header(header::CONTENT_TYPE, "application/json")
+                .uri("/friendship/requests/user-2")
                 .header(header::AUTHORIZATION, format!("Bearer {requester}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    // delete request
     let response = router
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/friendship/delete")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::DELETE)
+                .uri("/friendship/requests/user-2")
                 .header(header::AUTHORIZATION, format!("Bearer {requester}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -242,47 +228,39 @@ async fn test_is_friend_endpoint() {
     let requester = jwt_for("user-1");
     let acceptor = jwt_for("user-2");
 
-    // create friend request
     let _ = router
         .clone()
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/friendship/request")
-                .header(header::CONTENT_TYPE, "application/json")
+                .uri("/friendship/requests/user-2")
                 .header(header::AUTHORIZATION, format!("Bearer {requester}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    // accept it
     let _ = router
         .clone()
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/friendship/accept")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::PUT)
+                .uri("/friendship/requests/user-1/accept")
                 .header(header::AUTHORIZATION, format!("Bearer {acceptor}"))
-                .body(Body::from(json!({ "user_id": "user-1" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    // check friend
     let response = router
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/friendship/is_friend")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::GET)
+                .uri("/user-2/is-friend")
                 .header(header::AUTHORIZATION, format!("Bearer {requester}"))
-                .body(Body::from(
-                    json!({ "id": "user-2", "username": "" }).to_string(),
-                ))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -301,13 +279,10 @@ async fn test_is_friend_endpoint_returns_false_when_not_friend() {
     let response = router
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/friendship/is_friend")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::GET)
+                .uri("/user-2/is-friend")
                 .header(header::AUTHORIZATION, format!("Bearer {requester}"))
-                .body(Body::from(
-                    json!({ "id": "user-2", "username": "" }).to_string(),
-                ))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -324,31 +299,27 @@ async fn test_is_blocked_endpoint() {
     let (router, ..) = build_router();
     let blocker = jwt_for("user-1");
 
-    // block user-2
     let block_response = router
         .clone()
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/blocks/block")
-                .header(header::CONTENT_TYPE, "application/json")
+                .uri("/blocks/user-2")
                 .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(block_response.status(), StatusCode::OK);
 
-    // check blocked
     let response = router
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/blocks/is_blocked")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::GET)
+                .uri("/user-2/is-blocked")
                 .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -367,11 +338,10 @@ async fn test_is_blocked_endpoint_returns_false_when_not_blocked() {
     let response = router
         .oneshot(
             Request::builder()
-                .method(Method::POST)
-                .uri("/blocks/is_blocked")
-                .header(header::CONTENT_TYPE, "application/json")
+                .method(Method::GET)
+                .uri("/user-2/is-blocked")
                 .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
-                .body(Body::from(json!({ "user_id": "user-2" }).to_string()))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -381,4 +351,158 @@ async fn test_is_blocked_endpoint_returns_false_when_not_blocked() {
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let is_blocked: bool = serde_json::from_slice(&body).unwrap();
     assert!(!is_blocked);
+}
+
+#[tokio::test]
+async fn test_cannot_send_friend_request_to_self() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/friendship/requests/user-1")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot send a friend request to yourself");
+}
+
+#[tokio::test]
+async fn test_cannot_block_self() {
+    let (router, ..) = build_router();
+    let blocker = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/blocks/user-1")
+                .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot block yourself");
+}
+
+#[tokio::test]
+async fn test_cannot_accept_friend_request_to_self() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::PUT)
+                .uri("/friendship/requests/user-1/accept")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot accept a friend request to yourself");
+}
+
+#[tokio::test]
+async fn test_cannot_reject_friend_request_to_self() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::PUT)
+                .uri("/friendship/requests/user-1/reject")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot reject a friend request to yourself");
+}
+
+#[tokio::test]
+async fn test_cannot_delete_friend_request_to_self() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::DELETE)
+                .uri("/friendship/requests/user-1")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot delete a friend request to yourself");
+}
+
+#[tokio::test]
+async fn test_cannot_remove_self_as_friend() {
+    let (router, ..) = build_router();
+    let requester = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::DELETE)
+                .uri("/friendship/friends/user-1")
+                .header(header::AUTHORIZATION, format!("Bearer {requester}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot remove yourself as a friend");
+}
+
+#[tokio::test]
+async fn test_cannot_unblock_self() {
+    let (router, ..) = build_router();
+    let blocker = jwt_for("user-1");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method(Method::DELETE)
+                .uri("/blocks/user-1")
+                .header(header::AUTHORIZATION, format!("Bearer {blocker}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "You cannot unblock yourself");
 }

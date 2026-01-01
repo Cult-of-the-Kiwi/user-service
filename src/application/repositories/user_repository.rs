@@ -17,7 +17,8 @@ use crate::domain::{
 pub(crate) trait UserRepository: Send + Sync {
     //Getters
     async fn get_user(&self, user_id: &UserID) -> Result<User, Error>;
-    async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Result<User, Error>;
+    async fn get_user_if_friend(&self, user_id: &UserID, friend_id: &UserID)
+    -> Result<User, Error>;
     async fn get_friend_request(&self, request: &FriendRequest) -> Result<FriendRequest, Error>;
     async fn get_friend_requests(
         &self,
@@ -26,7 +27,11 @@ pub(crate) trait UserRepository: Send + Sync {
         direction: &FriendRequestDirection,
     ) -> Result<Vec<FriendRequest>, Error>;
     async fn get_user_friends(&self, user_id: &UserID, range: &Range) -> Result<Vec<User>, Error>;
-    async fn get_user_block(&self, user_id: &UserID, blocked_id: &UserID) -> Result<User, Error>;
+    async fn get_user_if_blocked(
+        &self,
+        user_id: &UserID,
+        blocked_id: &UserID,
+    ) -> Result<User, Error>;
     async fn get_user_blocks(&self, user_id: &UserID, range: &Range) -> Result<Vec<Block>, Error>;
     //Inserts
     async fn insert_friend_request(&self, request: &FriendRequest) -> Result<(), Error>;

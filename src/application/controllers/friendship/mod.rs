@@ -1,2 +1,2 @@
-pub(crate) mod firend_request;
+pub(crate) mod friend_request;
 pub(crate) mod friends;

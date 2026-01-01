@@ -99,7 +99,7 @@ async fn test_user_created_event_is_idempotent() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_sends_user_updated_event() -> anyhow::Result<()> {
-    let repo = Arc::new(InMemoryUserRepository::new(sample_users()));
+    let repo: Arc<dyn UserRepository> = Arc::new(InMemoryUserRepository::new(sample_users()));
     let event_manager = new_event_manager().await?;
 
     let expected_event = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
@@ -108,7 +108,7 @@ async fn test_sends_user_updated_event() -> anyhow::Result<()> {
     let mut rx = subscribe_event(&event_manager, expected_event.clone()).await?;
 
     handle_update_user(
-        repo,
+        &repo,
         event_manager.clone(),
         crate::domain::models::update_user::UpdateUser {
             username: Some("alice-updated".to_string()),
@@ -126,7 +126,7 @@ async fn test_sends_user_updated_event() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_sends_friend_request_created_event() -> anyhow::Result<()> {
-    let repo = Arc::new(InMemoryUserRepository::new(sample_users()));
+    let repo: Arc<dyn UserRepository> = Arc::new(InMemoryUserRepository::new(sample_users()));
     let event_manager = new_event_manager().await?;
 
     let expected_event =
@@ -136,7 +136,7 @@ async fn test_sends_friend_request_created_event() -> anyhow::Result<()> {
     let mut rx = subscribe_event(&event_manager, expected_event.clone()).await?;
 
     handle_request_friend(
-        repo,
+        &repo,
         event_manager.clone(),
         "user-1".to_string(),
         "user-2".to_string(),
@@ -152,7 +152,7 @@ async fn test_sends_friend_request_created_event() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_sends_friend_request_answered_event_on_accept() -> anyhow::Result<()> {
-    let repo = Arc::new(InMemoryUserRepository::new(sample_users()));
+    let repo: Arc<dyn UserRepository> = Arc::new(InMemoryUserRepository::new(sample_users()));
     repo.insert_friend_request(&crate::domain::models::friend_request::FriendRequest {
         from_user_id: "user-1".to_string(),
         to_user_id: "user-2".to_string(),
@@ -172,7 +172,7 @@ async fn test_sends_friend_request_answered_event_on_accept() -> anyhow::Result<
     let mut rx = subscribe_event(&event_manager, expected_event.clone()).await?;
 
     handle_accept_request(
-        repo,
+        &repo,
         event_manager.clone(),
         "user-2".to_string(),
         "user-1".to_string(),
@@ -188,7 +188,7 @@ async fn test_sends_friend_request_answered_event_on_accept() -> anyhow::Result<
 
 #[tokio::test]
 async fn test_sends_friend_request_answered_event_on_reject() -> anyhow::Result<()> {
-    let repo = Arc::new(InMemoryUserRepository::new(sample_users()));
+    let repo: Arc<dyn UserRepository> = Arc::new(InMemoryUserRepository::new(sample_users()));
     repo.insert_friend_request(&crate::domain::models::friend_request::FriendRequest {
         from_user_id: "user-1".to_string(),
         to_user_id: "user-2".to_string(),
@@ -208,7 +208,7 @@ async fn test_sends_friend_request_answered_event_on_reject() -> anyhow::Result<
     let mut rx = subscribe_event(&event_manager, expected_event.clone()).await?;
 
     handle_reject_request(
-        repo,
+        &repo,
         event_manager.clone(),
         "user-2".to_string(),
         "user-1".to_string(),

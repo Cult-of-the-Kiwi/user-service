@@ -49,7 +49,11 @@ impl UserRepository for InMemoryUserRepository {
             .ok_or(DbError::RowNotFound)
     }
 
-    async fn get_user_friend(&self, user_id: &UserID, friend_id: &UserID) -> Result<User, DbError> {
+    async fn get_user_if_friend(
+        &self,
+        user_id: &UserID,
+        friend_id: &UserID,
+    ) -> Result<User, DbError> {
         let friendships = self.friendships.lock().await;
         let exists = friendships.iter().any(|f| {
             (f.from_user_id == *user_id && f.to_user_id == *friend_id)
@@ -118,7 +122,7 @@ impl UserRepository for InMemoryUserRepository {
         Ok(list)
     }
 
-    async fn get_user_block(
+    async fn get_user_if_blocked(
         &self,
         _user_id: &UserID,
         _blocked_id: &UserID,

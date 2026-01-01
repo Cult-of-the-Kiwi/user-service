@@ -138,7 +138,7 @@ pub async fn insert_friendship_ok<T: UserRepository>(db: &T) {
     let a = create_user(db, "user-a", "Alice").await;
     let b = create_user(db, "user-b", "Bob").await;
     create_friendship(db, &a, &b).await;
-    let f = db.get_user_friend(&a.id, &b.id).await;
+    let f = db.get_user_if_friend(&a.id, &b.id).await;
     assert_eq!(Ok(b), f);
 }
 
@@ -147,7 +147,7 @@ pub async fn delete_friendship_ok<T: UserRepository>(db: &T) {
     let b = create_user(db, "user-b", "Bob").await;
     let fs = create_friendship(db, &a, &b).await;
     assert!(db.delete_friendship(&fs).await.is_ok());
-    assert!(db.get_user_friend(&a.id, &b.id).await.is_err());
+    assert!(db.get_user_if_friend(&a.id, &b.id).await.is_err());
 }
 
 pub async fn get_friendships<T: UserRepository>(db: &T) {

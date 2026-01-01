@@ -1,6 +1,7 @@
 pub(crate) mod block;
 pub(crate) mod domain;
 pub(crate) mod friend_request;
+pub(crate) mod friendship;
 pub(crate) mod user;
 
 use axum::{http::Response, response::IntoResponse};
@@ -16,6 +17,8 @@ pub(crate) enum Error {
     FriendRequest(friend_request::FriendRequestError),
     #[error("Block error: {0}")]
     Block(block::BlockError),
+    #[error("Friendship error: {0}")]
+    Friendship(friendship::FriendshipError),
 }
 
 impl IntoResponse for Error {
@@ -25,6 +28,7 @@ impl IntoResponse for Error {
             Error::Domain(e) => e.into_response(),
             Error::FriendRequest(e) => e.into_response(),
             Error::Block(e) => e.into_response(),
+            Error::Friendship(e) => e.into_response(),
         }
     }
 }
@@ -47,5 +51,10 @@ impl Into<Error> for friend_request::FriendRequestError {
 impl Into<Error> for block::BlockError {
     fn into(self) -> Error {
         Error::Block(self)
+    }
+}
+impl Into<Error> for friendship::FriendshipError {
+    fn into(self) -> Error {
+        Error::Friendship(self)
     }
 }
