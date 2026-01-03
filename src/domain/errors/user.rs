@@ -1,9 +1,10 @@
 use axum::{
-    body::Body,
-    http::{Response, StatusCode},
-    response::IntoResponse,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use thiserror::Error;
+
+use super::json_error_response;
 
 #[derive(Debug, Error)]
 pub(crate) enum UserError {
@@ -12,10 +13,10 @@ pub(crate) enum UserError {
 }
 
 impl IntoResponse for UserError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
             UserError::UserDoesNotExist => {
-                (StatusCode::NOT_FOUND, self.to_string()).into_response()
+                json_error_response(StatusCode::NOT_FOUND, self.to_string())
             }
         }
     }

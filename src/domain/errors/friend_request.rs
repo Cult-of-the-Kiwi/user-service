@@ -1,9 +1,10 @@
 use axum::{
-    body::Body,
-    http::{Response, StatusCode},
-    response::IntoResponse,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use thiserror::Error;
+
+use super::json_error_response;
 
 #[derive(Debug, Error)]
 pub(crate) enum FriendRequestError {
@@ -24,20 +25,20 @@ pub(crate) enum FriendRequestError {
 }
 
 impl IntoResponse for FriendRequestError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
             FriendRequestError::FriendRequestDoesNotExist => {
-                (StatusCode::NOT_FOUND, self.to_string()).into_response()
+                json_error_response(StatusCode::NOT_FOUND, self.to_string())
             }
             FriendRequestError::FriendRequestAlreadyHandled
             | FriendRequestError::FriendRequestAlreadyExists => {
-                (StatusCode::CONFLICT, self.to_string()).into_response()
+                json_error_response(StatusCode::CONFLICT, self.to_string())
             }
             FriendRequestError::CannotSendToSelf
             | FriendRequestError::CannotAcceptSelf
             | FriendRequestError::CannotRejectSelf
             | FriendRequestError::CannotDeleteSelf => {
-                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+                json_error_response(StatusCode::BAD_REQUEST, self.to_string())
             }
         }
     }

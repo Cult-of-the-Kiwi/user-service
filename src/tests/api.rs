@@ -372,7 +372,11 @@ async fn test_cannot_send_friend_request_to_self() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot send a friend request to yourself");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        payload,
+        json!({ "message": "You cannot send a friend request to yourself" })
+    );
 }
 
 #[tokio::test]
@@ -394,7 +398,8 @@ async fn test_cannot_block_self() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot block yourself");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload, json!({ "message": "You cannot block yourself" }));
 }
 
 #[tokio::test]
@@ -416,7 +421,11 @@ async fn test_cannot_accept_friend_request_to_self() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot accept a friend request to yourself");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        payload,
+        json!({ "message": "You cannot accept a friend request to yourself" })
+    );
 }
 
 #[tokio::test]
@@ -438,7 +447,11 @@ async fn test_cannot_reject_friend_request_to_self() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot reject a friend request to yourself");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        payload,
+        json!({ "message": "You cannot reject a friend request to yourself" })
+    );
 }
 
 #[tokio::test]
@@ -460,7 +473,11 @@ async fn test_cannot_delete_friend_request_to_self() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot delete a friend request to yourself");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        payload,
+        json!({ "message": "You cannot delete a friend request to yourself" })
+    );
 }
 
 #[tokio::test]
@@ -482,7 +499,11 @@ async fn test_cannot_remove_self_as_friend() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot remove yourself as a friend");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        payload,
+        json!({ "message": "You cannot remove yourself as a friend" })
+    );
 }
 
 #[tokio::test]
@@ -504,5 +525,6 @@ async fn test_cannot_unblock_self() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    assert_eq!(body, "You cannot unblock yourself");
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload, json!({ "message": "You cannot unblock yourself" }));
 }

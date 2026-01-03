@@ -1,9 +1,10 @@
 use axum::{
-    body::Body,
-    http::{Response, StatusCode},
-    response::IntoResponse,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use thiserror::Error;
+
+use super::json_error_response;
 
 #[derive(Debug, Error)]
 pub(crate) enum FriendshipError {
@@ -12,10 +13,10 @@ pub(crate) enum FriendshipError {
 }
 
 impl IntoResponse for FriendshipError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
             FriendshipError::CannotRemoveSelf => {
-                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+                json_error_response(StatusCode::BAD_REQUEST, self.to_string())
             }
         }
     }

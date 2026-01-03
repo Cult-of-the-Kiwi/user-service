@@ -1,9 +1,10 @@
 use axum::{
-    body::Body,
-    http::{Response, StatusCode},
-    response::IntoResponse,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use thiserror::Error;
+
+use super::json_error_response;
 
 #[derive(Debug, Error)]
 pub(crate) enum BlockError {
@@ -18,16 +19,16 @@ pub(crate) enum BlockError {
 }
 
 impl IntoResponse for BlockError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
             BlockError::BlockDoesNotExist => {
-                (StatusCode::NOT_FOUND, self.to_string()).into_response()
+                json_error_response(StatusCode::NOT_FOUND, self.to_string())
             }
             BlockError::BlockAlreadyExists => {
-                (StatusCode::CONFLICT, self.to_string()).into_response()
+                json_error_response(StatusCode::CONFLICT, self.to_string())
             }
             BlockError::CannotBlockSelf | BlockError::CannotUnblockSelf => {
-                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+                json_error_response(StatusCode::BAD_REQUEST, self.to_string())
             }
         }
     }

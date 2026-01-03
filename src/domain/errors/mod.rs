@@ -4,7 +4,12 @@ pub(crate) mod friend_request;
 pub(crate) mod friendship;
 pub(crate) mod user;
 
-use axum::{http::Response, response::IntoResponse};
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -22,7 +27,7 @@ pub(crate) enum Error {
 }
 
 impl IntoResponse for Error {
-    fn into_response(self) -> Response<axum::body::Body> {
+    fn into_response(self) -> Response {
         match self {
             Error::User(e) => e.into_response(),
             Error::Domain(e) => e.into_response(),
@@ -57,4 +62,8 @@ impl Into<Error> for friendship::FriendshipError {
     fn into(self) -> Error {
         Error::Friendship(self)
     }
+}
+
+pub(crate) fn json_error_response(status: StatusCode, message: String) -> Response {
+    (status, Json(json!({ "message": message }))).into_response()
 }

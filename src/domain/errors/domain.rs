@@ -1,9 +1,10 @@
 use axum::{
-    body::Body,
-    http::{Response, StatusCode},
-    response::IntoResponse,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use thiserror::Error;
+
+use super::json_error_response;
 
 #[derive(Debug, Error)]
 pub(crate) enum DomainError {
@@ -12,10 +13,10 @@ pub(crate) enum DomainError {
 }
 
 impl IntoResponse for DomainError {
-    fn into_response(self) -> Response<Body> {
+    fn into_response(self) -> Response {
         match self {
             DomainError::InternalError => {
-                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+                json_error_response(StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
             }
         }
     }
