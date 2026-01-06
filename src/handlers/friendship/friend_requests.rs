@@ -52,7 +52,10 @@ pub async fn handle_request_friend(
 
     if let Err(e) = tx.insert_friend_request(&request).await {
         if let Err(rollback_err) = tx.rollback().await {
-            error!(?rollback_err, "Failed to rollback friend request transaction");
+            error!(
+                ?rollback_err,
+                "Failed to rollback friend request transaction"
+            );
         }
         return Err(match e {
             devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -74,7 +77,10 @@ pub async fn handle_request_friend(
         Ok(user) => user,
         Err(e) => {
             if let Err(rollback_err) = tx.rollback().await {
-                error!(?rollback_err, "Failed to rollback friend request transaction");
+                error!(
+                    ?rollback_err,
+                    "Failed to rollback friend request transaction"
+                );
             }
             return Err(match e {
                 devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -132,7 +138,10 @@ pub async fn handle_accept_request(
         Ok(request) => request,
         Err(e) => {
             if let Err(rollback_err) = tx.rollback().await {
-                error!(?rollback_err, "Failed to rollback accept friend request transaction");
+                error!(
+                    ?rollback_err,
+                    "Failed to rollback accept friend request transaction"
+                );
             }
             return Err(match e {
                 devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -149,7 +158,10 @@ pub async fn handle_accept_request(
 
     if !existing.is_pending() {
         if let Err(rollback_err) = tx.rollback().await {
-            error!(?rollback_err, "Failed to rollback accept friend request transaction");
+            error!(
+                ?rollback_err,
+                "Failed to rollback accept friend request transaction"
+            );
         }
         return Err(FriendRequestAlreadyHandled.into());
     }
@@ -158,7 +170,10 @@ pub async fn handle_accept_request(
 
     if let Err(e) = tx.update_friend_request(&existing).await {
         if let Err(rollback_err) = tx.rollback().await {
-            error!(?rollback_err, "Failed to rollback accept friend request transaction");
+            error!(
+                ?rollback_err,
+                "Failed to rollback accept friend request transaction"
+            );
         }
         return Err(match e {
             devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -177,7 +192,10 @@ pub async fn handle_accept_request(
         .await
     {
         if let Err(rollback_err) = tx.rollback().await {
-            error!(?rollback_err, "Failed to rollback accept friend request transaction");
+            error!(
+                ?rollback_err,
+                "Failed to rollback accept friend request transaction"
+            );
         }
         return Err(match e {
             devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -199,7 +217,10 @@ pub async fn handle_accept_request(
         Ok(user) => user,
         Err(e) => {
             if let Err(rollback_err) = tx.rollback().await {
-                error!(?rollback_err, "Failed to rollback accept friend request transaction");
+                error!(
+                    ?rollback_err,
+                    "Failed to rollback accept friend request transaction"
+                );
             }
             return Err(match e {
                 devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -260,7 +281,10 @@ pub async fn handle_reject_request(
         Ok(request) => request,
         Err(e) => {
             if let Err(rollback_err) = tx.rollback().await {
-                error!(?rollback_err, "Failed to rollback reject friend request transaction");
+                error!(
+                    ?rollback_err,
+                    "Failed to rollback reject friend request transaction"
+                );
             }
             return Err(match e {
                 devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -277,7 +301,10 @@ pub async fn handle_reject_request(
 
     if !existing.is_pending() {
         if let Err(rollback_err) = tx.rollback().await {
-            error!(?rollback_err, "Failed to rollback reject friend request transaction");
+            error!(
+                ?rollback_err,
+                "Failed to rollback reject friend request transaction"
+            );
         }
         return Err(FriendRequestAlreadyHandled.into());
     }
@@ -286,7 +313,10 @@ pub async fn handle_reject_request(
 
     if let Err(e) = tx.update_friend_request(&existing).await {
         if let Err(rollback_err) = tx.rollback().await {
-            error!(?rollback_err, "Failed to rollback reject friend request transaction");
+            error!(
+                ?rollback_err,
+                "Failed to rollback reject friend request transaction"
+            );
         }
         return Err(match e {
             devcord_sqlx_utils::error::Error::RowNotFound => {
@@ -304,7 +334,10 @@ pub async fn handle_reject_request(
         Ok(user) => user,
         Err(e) => {
             if let Err(rollback_err) = tx.rollback().await {
-                error!(?rollback_err, "Failed to rollback reject friend request transaction");
+                error!(
+                    ?rollback_err,
+                    "Failed to rollback reject friend request transaction"
+                );
             }
             return Err(match e {
                 devcord_sqlx_utils::error::Error::RowNotFound => {
