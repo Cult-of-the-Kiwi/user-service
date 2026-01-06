@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use devcord_sqlx_utils::error::Error;
 
+use crate::application::transaction::Transaction;
 use crate::domain::{
     models::{
         block::Block,
@@ -49,8 +50,5 @@ pub(crate) trait UserRepository: Send + Sync {
     async fn delete_user(&self, user: &User) -> Result<(), Error>;
 }
 
-#[async_trait]
-pub(crate) trait UserRepositoryTx: UserRepository {
-    async fn commit(self: Box<Self>) -> Result<(), Error>;
-    async fn rollback(self: Box<Self>) -> Result<(), Error>;
-}
+pub(crate) trait UserRepositoryTx: UserRepository + Transaction {}
+impl<T: UserRepository + Transaction> UserRepositoryTx for T {}

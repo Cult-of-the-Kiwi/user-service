@@ -1,13 +1,16 @@
 use async_trait::async_trait;
 use devcord_sqlx_utils::error::Error;
 use sqlx::{
-    Error as SqlxError, Pool, Postgres, QueryBuilder, Transaction,
+    Error as SqlxError, Pool, Postgres, QueryBuilder,
     postgres::{PgConnection, PgExecutor},
 };
 use tokio::sync::Mutex;
 
 use crate::{
-    application::repositories::user_repository::{UserRepository, UserRepositoryTx},
+    application::{
+        repositories::user_repository::{UserRepository, UserRepositoryTx},
+        transaction::Transaction,
+    },
     domain::{
         models::{
             block::Block,
@@ -30,12 +33,12 @@ impl PostgresUserRepository {
 }
 
 pub(crate) struct PostgresUserRepositoryTx<'a> {
-    tx: Mutex<Option<Transaction<'a, Postgres>>>,
+    tx: Mutex<Option<sqlx::Transaction<'a, Postgres>>>,
 }
 
 impl<'a> PostgresUserRepositoryTx<'a> {
     fn conn<'b>(
-        tx: &'b mut Option<Transaction<'a, Postgres>>,
+        tx: &'b mut Option<sqlx::Transaction<'a, Postgres>>,
     ) -> Result<&'b mut PgConnection, Error> {
         let tx = tx
             .as_mut()
@@ -677,7 +680,7 @@ impl UserRepository for PostgresUserRepositoryTx<'_> {
 }
 
 #[async_trait]
-impl UserRepositoryTx for PostgresUserRepositoryTx<'_> {
+impl Transaction for PostgresUserRepositoryTx<'_> {
     async fn commit(self: Box<Self>) -> Result<(), Error> {
         let mut tx = self.tx.lock().await;
         if let Some(tx) = tx.take() {

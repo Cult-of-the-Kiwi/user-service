@@ -5,7 +5,10 @@ use devcord_sqlx_utils::error::Error as DbError;
 use tokio::sync::Mutex;
 
 use crate::{
-    application::repositories::user_repository::{UserRepository, UserRepositoryTx},
+    application::{
+        repositories::user_repository::{UserRepository, UserRepositoryTx},
+        transaction::Transaction,
+    },
     domain::{
         models::{
             block::Block,
@@ -519,7 +522,7 @@ impl UserRepository for InMemoryUserRepositoryTx<'_> {
 }
 
 #[async_trait]
-impl UserRepositoryTx for InMemoryUserRepositoryTx<'_> {
+impl Transaction for InMemoryUserRepositoryTx<'_> {
     async fn commit(self: Box<Self>) -> Result<(), DbError> {
         self.parent.replace_with(&self.state).await;
         Ok(())
