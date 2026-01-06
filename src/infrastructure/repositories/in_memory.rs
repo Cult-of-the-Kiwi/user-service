@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry::Occupied};
 
 use async_trait::async_trait;
 use devcord_sqlx_utils::error::Error as DbError;
@@ -233,8 +233,8 @@ impl InMemoryState {
     async fn update_friend_request(&self, request: &FriendRequest) -> Result<(), DbError> {
         let mut requests = self.friend_requests.lock().await;
         let key = (request.from_user_id.clone(), request.to_user_id.clone());
-        if requests.contains_key(&key) {
-            requests.insert(key, request.clone());
+        if let Occupied(mut e) = requests.entry(key) {
+            e.insert(request.clone());
             Ok(())
         } else {
             Err(DbError::RowNotFound)
