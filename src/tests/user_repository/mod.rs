@@ -1,3 +1,4 @@
+mod in_memory;
 mod postgres;
 
 use chrono::{Timelike, Utc};
@@ -139,6 +140,39 @@ pub async fn delete_friend_request_ok<T: UserRepository>(db: &T) {
     let req = create_friend_request(db, &a, &b).await;
     assert!(db.delete_friend_request(&req).await.is_ok());
     assert!(db.get_friend_request(&req).await.is_err());
+}
+
+// ---------- TRANSACTION TESTS ----------
+pub async fn transaction_commit_persists<T: UserRepository>(db: &T) {
+    let new_user = User {
+        id: "tx-user-commit".to_string(),
+        username: "tx-alice".to_string(),
+        created_at: Some(test_timestamp()),
+    };
+
+    let tx = db.begin_tx().await.expect("begin tx");
+    tx.insert_user(&new_user).await.expect("insert in tx");
+    tx.commit().await.expect("commit tx");
+
+    let fetched = db
+        .get_user(&new_user.id)
+        .await
+        .expect("user should persist");
+    assert_eq!(fetched.username, new_user.username);
+}
+
+pub async fn transaction_rollback_discards<T: UserRepository>(db: &T) {
+    let new_user = User {
+        id: "tx-user-rollback".to_string(),
+        username: "tx-bob".to_string(),
+        created_at: Some(test_timestamp()),
+    };
+
+    let tx = db.begin_tx().await.expect("begin tx");
+    tx.insert_user(&new_user).await.expect("insert in tx");
+    tx.rollback().await.expect("rollback tx");
+
+    assert!(db.get_user(&new_user.id).await.is_err());
 }
 
 // ---------- FRIENDSHIP TESTS ----------

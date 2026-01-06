@@ -15,6 +15,7 @@ use crate::domain::{
 
 #[async_trait]
 pub(crate) trait UserRepository: Send + Sync {
+    async fn begin_tx(&self) -> Result<Box<dyn UserRepositoryTx + '_>, Error>;
     //Getters
     async fn get_user(&self, user_id: &UserID) -> Result<User, Error>;
     async fn get_user_if_friend(&self, user_id: &UserID, friend_id: &UserID)
@@ -46,4 +47,10 @@ pub(crate) trait UserRepository: Send + Sync {
     async fn delete_friendship(&self, friendship: &Friendship) -> Result<(), Error>;
     async fn delete_friend_request(&self, request: &FriendRequest) -> Result<(), Error>;
     async fn delete_user(&self, user: &User) -> Result<(), Error>;
+}
+
+#[async_trait]
+pub(crate) trait UserRepositoryTx: UserRepository {
+    async fn commit(self: Box<Self>) -> Result<(), Error>;
+    async fn rollback(self: Box<Self>) -> Result<(), Error>;
 }

@@ -14,8 +14,8 @@ use crate::{
         delete_block_ok, delete_friend_request_ok, delete_friendship_ok, delete_user_ok,
         get_friendships, insert_block_ok, insert_friend_request_duplicate,
         insert_friend_request_ok, insert_friendship_ok, insert_user_duplicate_id,
-        insert_user_duplicate_name, insert_user_ok, update_user_name,
-        update_user_name_without_changing_others,
+        insert_user_duplicate_name, insert_user_ok, transaction_commit_persists,
+        transaction_rollback_discards, update_user_name, update_user_name_without_changing_others,
     },
 };
 
@@ -131,4 +131,16 @@ async fn test_postgres_insert_block_ok() {
 async fn test_postgres_delete_block_ok() {
     let (_pg, db) = setup_postgres().await;
     delete_block_ok(&db).await;
+}
+
+#[tokio::test]
+async fn test_postgres_transaction_commit_persists() {
+    let (_pg, db) = setup_postgres().await;
+    transaction_commit_persists(&db).await;
+}
+
+#[tokio::test]
+async fn test_postgres_transaction_rollback_discards() {
+    let (_pg, db) = setup_postgres().await;
+    transaction_rollback_discards(&db).await;
 }

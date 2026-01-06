@@ -3,7 +3,7 @@ use sqlx::FromRow;
 
 use crate::domain::types::{Time, UserID};
 
-#[derive(FromRow, Debug, Default, Deserialize, Serialize)]
+#[derive(FromRow, Debug, Default, Deserialize, Serialize, Clone)]
 pub(crate) struct Friendship {
     #[serde(skip_deserializing, rename = "sender_id")]
     pub from_user_id: UserID,
