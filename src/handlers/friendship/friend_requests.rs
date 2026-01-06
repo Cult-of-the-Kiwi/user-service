@@ -79,13 +79,10 @@ pub async fn handle_request_friend(
     let event = Event::UserEvent(UserEvent::FriendRequestCreatedEvent(FriendRequestCreated {
         from_username: sender.username,
     }));
-    event_manager
-        .notify(event)
-        .await
-        .map_err(|e| {
-            error!(?e, "Failed to publish friend request created event");
-            InternalError.into()
-        })
+    event_manager.notify(event).await.map_err(|e| {
+        error!(?e, "Failed to publish friend request created event");
+        InternalError.into()
+    })
 }
 
 pub async fn handle_accept_request(
@@ -113,7 +110,7 @@ pub async fn handle_accept_request(
         e => {
             error!(?e, "Failed to fetch friend request");
             InternalError.into()
-        },
+        }
     })?;
 
     if !existing.is_pending() {
@@ -149,7 +146,7 @@ pub async fn handle_accept_request(
             e => {
                 error!(?e, "Failed to insert friendship");
                 InternalError.into()
-            },
+            }
         })?;
 
     let sender = db
@@ -172,13 +169,10 @@ pub async fn handle_accept_request(
             accepted: true,
         },
     ));
-    event_manager
-        .notify(event)
-        .await
-        .map_err(|e| {
-            error!(?e, "Failed to publish friend request answered event");
-            InternalError.into()
-        })
+    event_manager.notify(event).await.map_err(|e| {
+        error!(?e, "Failed to publish friend request answered event");
+        InternalError.into()
+    })
 }
 
 pub async fn handle_reject_request(
@@ -206,7 +200,7 @@ pub async fn handle_reject_request(
         e => {
             error!(?e, "Failed to fetch friend request");
             InternalError.into()
-        },
+        }
     })?;
 
     if !existing.is_pending() {
@@ -248,13 +242,10 @@ pub async fn handle_reject_request(
             accepted: false,
         },
     ));
-    event_manager
-        .notify(event)
-        .await
-        .map_err(|e| {
-            error!(?e, "Failed to publish friend request rejected event");
-            InternalError.into()
-        })
+    event_manager.notify(event).await.map_err(|e| {
+        error!(?e, "Failed to publish friend request rejected event");
+        InternalError.into()
+    })
 }
 
 pub async fn handle_delete_request(

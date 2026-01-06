@@ -29,7 +29,7 @@ pub async fn handle_get_friends(
             e => {
                 error!(?e, "Failed to fetch friends");
                 InternalError.into()
-            },
+            }
         })
 }
 
@@ -57,7 +57,7 @@ pub async fn handle_remove_friend(
             e => {
                 error!(?e, "Failed to delete friendship");
                 InternalError.into()
-            },
+            }
         })
 }
 

@@ -45,7 +45,7 @@ pub async fn handle_block(
         e => {
             error!(?e, "Failed to insert block");
             InternalError.into()
-        },
+        }
     })
 }
 
@@ -72,7 +72,7 @@ pub async fn handle_unblock(
         e => {
             error!(?e, "Failed to delete block");
             InternalError.into()
-        },
+        }
     })
 }
 
@@ -91,7 +91,7 @@ pub async fn handle_get_blocks(
             e => {
                 error!(?e, "Failed to get user blocks");
                 InternalError.into()
-            },
+            }
         })
 }
 

@@ -34,17 +34,14 @@ pub async fn handle_update_user(
             e => {
                 error!(?e, "Failed to update user");
                 InternalError.into()
-            },
+            }
         })?;
 
     let event = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated { id: user_id }));
-    event_manager
-        .notify(event)
-        .await
-        .map_err(|e| {
-            error!(?e, "Failed to publish UserUpdated event");
-            InternalError.into()
-        })
+    event_manager.notify(event).await.map_err(|e| {
+        error!(?e, "Failed to publish UserUpdated event");
+        InternalError.into()
+    })
 }
 
 pub async fn handle_get_user(db: &Arc<dyn UserRepository>, user_id: UserID) -> Result<User, Error> {
@@ -56,7 +53,7 @@ pub async fn handle_get_user(db: &Arc<dyn UserRepository>, user_id: UserID) -> R
         e => {
             error!(?e, "Failed to fetch user");
             InternalError.into()
-        },
+        }
     })?;
 
     Ok(result)

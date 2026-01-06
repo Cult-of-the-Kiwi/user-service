@@ -26,7 +26,8 @@ use crate::{
     domain::models::user::User,
     infrastructure::{
         context::db::postgres::{PgOptions, new_pg_pool},
-        repositories::postgres::PostgresUserRepository,
+        events::in_memory::InMemoryEventManager,
+        repositories::{in_memory::InMemoryUserRepository, postgres::PostgresUserRepository},
     },
 };
 
@@ -43,8 +44,8 @@ pub struct AppBuilder {
     trace_layer: Option<TraceLayer<SharedClassifier<ServerErrorsAsFailures>>>,
 }
 
-impl AppBuilder {
-    pub fn new() -> Self {
+impl Default for AppBuilder {
+    fn default() -> Self {
         Self {
             db: None,
             event_manager: None,
@@ -52,7 +53,9 @@ impl AppBuilder {
             trace_layer: None,
         }
     }
+}
 
+impl AppBuilder {
     pub async fn with_db_postgres(mut self) -> anyhow::Result<Self> {
         let max_conns: u32 = var("DB_MAX_CONNECTIONS")
             .unwrap_or("1".to_owned())
@@ -78,9 +81,19 @@ impl AppBuilder {
         Ok(self)
     }
 
+    pub async fn with_db_in_memory(mut self) -> anyhow::Result<Self> {
+        self.db = Some(Box::new(InMemoryUserRepository::new(Vec::new())));
+        Ok(self)
+    }
+
     pub async fn with_event_manager_fluvio(mut self) -> anyhow::Result<Self> {
         self.event_manager = Some(Box::new(FluvioHandler::new()?));
 
+        Ok(self)
+    }
+
+    pub fn with_event_manager_in_memory(mut self) -> anyhow::Result<Self> {
+        self.event_manager = Some(Box::new(InMemoryEventManager::new()));
         Ok(self)
     }
 
@@ -133,18 +146,6 @@ impl AppBuilder {
         register_event_listeners(state.db.clone(), state.event_manager.clone()).await?;
 
         Ok(router)
-    }
-
-    pub async fn default() -> anyhow::Result<Router> {
-        Self::new()
-            .with_db_postgres()
-            .await?
-            .with_event_manager_fluvio()
-            .await?
-            .with_cors_layer_env()?
-            .with_trace_layer()
-            .build()
-            .await
     }
 }
 
