@@ -1,5 +1,6 @@
 mod postgres;
 
+use chrono::{Timelike, Utc};
 use devcord_sqlx_utils::error::Error;
 
 use crate::{
@@ -10,12 +11,19 @@ use crate::{
     },
 };
 
+fn test_timestamp() -> chrono::DateTime<Utc> {
+    Utc::now()
+        .with_nanosecond(0)
+        .expect("nanosecond truncation should never fail")
+}
+
 // ---------- HELPERS ----------
 async fn create_user<T: UserRepository>(db: &T, id: &str, name: &str) -> User {
+    let created_at = Some(test_timestamp());
     let user = User {
         username: name.to_owned(),
         id: id.to_owned(),
-        created_at: None,
+        created_at,
     };
     assert!(db.insert_user(&user).await.is_ok());
     user
@@ -64,7 +72,7 @@ pub async fn insert_user_duplicate_id<T: UserRepository>(db: &T) {
     let dup = User {
         id: "user-1".into(),
         username: "Bob".into(),
-        created_at: None,
+        created_at: Some(test_timestamp()),
     };
     assert_eq!(db.insert_user(&dup).await, Err(Error::AlreadyExists));
 }
@@ -74,7 +82,7 @@ pub async fn insert_user_duplicate_name<T: UserRepository>(db: &T) {
     let dup = User {
         id: "user-b".into(),
         username: "Alice".into(),
-        created_at: None,
+        created_at: Some(test_timestamp()),
     };
     assert_eq!(db.insert_user(&dup).await, Err(Error::AlreadyExists));
 }

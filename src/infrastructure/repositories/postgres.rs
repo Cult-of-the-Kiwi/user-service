@@ -94,7 +94,7 @@ impl UserRepository for Pool<Postgres> {
         qb.push_bind(user_id);
 
         if let Some(filter) = &range.state_filter {
-            qb.push(" AND state = ").push_bind(format!("{}%", filter));
+            qb.push(" AND state = ").push_bind(filter);
         }
 
         let friend_requests = qb
@@ -227,19 +227,26 @@ impl UserRepository for Pool<Postgres> {
     }
 
     async fn insert_user(&self, user: &User) -> Result<(), Error> {
-        sqlx::query(
+        let mut qb = QueryBuilder::new(
             "
-            INSERT
-            INTO users (username, id)
-            VALUES ($1, $2)
-        ",
-        )
-        .bind(&user.username)
-        .bind(&user.id)
-        .execute(self)
-        .await?;
+            INSERT INTO users (username, id",
+        );
 
-        //FIXME!(Lamoara) make it so the created_at is inserted if is some
+        if user.created_at.is_some() {
+            qb.push(", created_at");
+        }
+
+        qb.push(") VALUES (");
+        qb.push_bind(&user.username);
+        qb.push(", ").push_bind(&user.id);
+
+        if let Some(created_at) = user.created_at {
+            qb.push(", ").push_bind(created_at);
+        }
+
+        qb.push(")");
+
+        qb.build().execute(self).await?;
 
         Ok(())
     }
@@ -252,7 +259,7 @@ impl UserRepository for Pool<Postgres> {
         WHERE from_user_id = $2 AND to_user_id = $3
     ",
         )
-        .bind(&request.state)
+        .bind(request.state)
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
         .execute(self)
