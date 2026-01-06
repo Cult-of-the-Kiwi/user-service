@@ -24,7 +24,10 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 use crate::{api, application::repositories::user_repository::UserRepository};
 use crate::{
     domain::models::user::User,
-    infrastructure::context::db::postgres::{PgOptions, new_pg_pool},
+    infrastructure::{
+        context::db::postgres::{PgOptions, new_pg_pool},
+        repositories::postgres::PostgresUserRepository,
+    },
 };
 
 #[derive(Clone)]
@@ -70,7 +73,7 @@ impl AppBuilder {
         })
         .await?;
 
-        self.db = Some(Box::new(db));
+        self.db = Some(Box::new(PostgresUserRepository::new(db)));
 
         Ok(self)
     }

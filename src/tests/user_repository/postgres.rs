@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use sqlx::PgPool;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{ContainerPort, WaitFor},
@@ -10,6 +9,7 @@ use tokio::time::sleep;
 
 use crate::{
     infrastructure::context::db::postgres::{PgOptions, new_pg_pool},
+    infrastructure::repositories::postgres::PostgresUserRepository,
     tests::user_repository::{
         delete_block_ok, delete_friend_request_ok, delete_friendship_ok, delete_user_ok,
         get_friendships, insert_block_ok, insert_friend_request_duplicate,
@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-async fn setup_postgres() -> (ContainerAsync<GenericImage>, PgPool) {
+async fn setup_postgres() -> (ContainerAsync<GenericImage>, PostgresUserRepository) {
     let pg = GenericImage::new("postgres", "16-alpine")
         .with_exposed_port(ContainerPort::Tcp(5432))
         .with_wait_for(WaitFor::message_on_stdout(
@@ -40,7 +40,7 @@ async fn setup_postgres() -> (ContainerAsync<GenericImage>, PgPool) {
         max_conns: 1,
         acquire_timeout: Duration::from_secs(10),
     };
-    let db = new_pg_pool(&options).await.unwrap();
+    let db = PostgresUserRepository::new(new_pg_pool(&options).await.unwrap());
 
     (pg, db)
 }

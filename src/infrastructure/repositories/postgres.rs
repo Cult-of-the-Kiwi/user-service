@@ -17,8 +17,16 @@ use crate::{
     },
 };
 
+pub(crate) struct PostgresUserRepository(pub Pool<Postgres>);
+
+impl PostgresUserRepository {
+    pub(crate) fn new(pool: Pool<Postgres>) -> Self {
+        Self(pool)
+    }
+}
+
 #[async_trait]
-impl UserRepository for Pool<Postgres> {
+impl UserRepository for PostgresUserRepository {
     async fn get_user(&self, user_id: &UserID) -> Result<User, Error> {
         let user = sqlx::query_as(
             "
@@ -28,7 +36,7 @@ impl UserRepository for Pool<Postgres> {
     ",
         )
         .bind(user_id)
-        .fetch_one(self)
+        .fetch_one(&self.0)
         .await?;
 
         Ok(user)
@@ -50,7 +58,7 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(user_id)
         .bind(friend_id)
-        .fetch_one(self)
+        .fetch_one(&self.0)
         .await?;
 
         Ok(user)
@@ -66,7 +74,7 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
-        .fetch_one(self)
+        .fetch_one(&self.0)
         .await?;
 
         Ok(friend_request)
@@ -108,7 +116,7 @@ impl UserRepository for Pool<Postgres> {
             .push(" LIMIT ")
             .push_bind((range.to - range.from).max(0))
             .build_query_as()
-            .fetch_all(self)
+            .fetch_all(&self.0)
             .await?;
 
         Ok(friend_requests)
@@ -130,7 +138,7 @@ impl UserRepository for Pool<Postgres> {
         .bind(user_id)
         .bind(range.from)
         .bind((range.to - range.from).max(0))
-        .fetch_all(self)
+        .fetch_all(&self.0)
         .await?;
 
         Ok(friends)
@@ -152,7 +160,7 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(user_id)
         .bind(blocked_id)
-        .fetch_one(self)
+        .fetch_one(&self.0)
         .await?;
 
         Ok(user)
@@ -172,7 +180,7 @@ impl UserRepository for Pool<Postgres> {
         .bind(user_id)
         .bind(range.from)
         .bind((range.to - range.from).max(0))
-        .fetch_all(self)
+        .fetch_all(&self.0)
         .await?;
 
         Ok(blocks)
@@ -188,7 +196,7 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -200,11 +208,11 @@ impl UserRepository for Pool<Postgres> {
         INSERT
         INTO friendships (from_user_id, to_user_id)
         VALUES ($1, $2), ($2, $1)
-    ",
+        ",
         )
         .bind(user_a)
         .bind(user_b)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -216,11 +224,11 @@ impl UserRepository for Pool<Postgres> {
         INSERT
         INTO blocks (from_user_id, to_user_id)
         VALUES ($1, $2)
-    ",
+        ",
         )
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -246,7 +254,7 @@ impl UserRepository for Pool<Postgres> {
 
         qb.push(")");
 
-        qb.build().execute(self).await?;
+        qb.build().execute(&self.0).await?;
 
         Ok(())
     }
@@ -257,12 +265,12 @@ impl UserRepository for Pool<Postgres> {
         UPDATE friend_requests
         SET state = $1, responded_at = CURRENT_TIMESTAMP,
         WHERE from_user_id = $2 AND to_user_id = $3
-    ",
+        ",
         )
         .bind(request.state)
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -293,7 +301,7 @@ impl UserRepository for Pool<Postgres> {
         qb.push(" WHERE id =  ");
         qb.push_bind(user_id);
 
-        qb.build().execute(self).await?;
+        qb.build().execute(&self.0).await?;
 
         Ok(())
     }
@@ -308,7 +316,7 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(&block.from_user_id)
         .bind(&block.to_user_id)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -324,7 +332,7 @@ impl UserRepository for Pool<Postgres> {
         )
         .bind(&friendship.from_user_id)
         .bind(&friendship.to_user_id)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -341,7 +349,7 @@ impl UserRepository for Pool<Postgres> {
         .bind(&request.from_user_id)
         .bind(&request.to_user_id)
         .bind(&request.state)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
@@ -356,7 +364,7 @@ impl UserRepository for Pool<Postgres> {
         ",
         )
         .bind(&user.id)
-        .execute(self)
+        .execute(&self.0)
         .await?;
 
         Ok(())
