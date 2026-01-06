@@ -21,9 +21,9 @@ use crate::{
         },
         user::handle_update_user,
     },
-    tests::{
-        in_memory_event_manager::InMemoryEventManager,
-        in_memory_user_repository::{InMemoryUserRepository, sample_users},
+    infrastructure::{
+        events::in_memory::InMemoryEventManager,
+        repositories::in_memory::{InMemoryUserRepository, sample_users},
     },
 };
 

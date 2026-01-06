@@ -277,6 +277,7 @@ impl UserRepository for InMemoryUserRepository {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn sample_users() -> Vec<User> {
     vec![
         User {
