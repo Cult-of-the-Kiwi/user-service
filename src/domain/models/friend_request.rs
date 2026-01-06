@@ -16,27 +16,6 @@ pub enum FriendRequestState {
     Rejected,
 }
 
-impl From<&str> for FriendRequestState {
-    fn from(value: &str) -> Self {
-        match value.to_lowercase().as_str() {
-            "pending" => Self::Pending,
-            "accepted" => Self::Accepted,
-            "rejected" => Self::Rejected,
-            _ => Self::default(),
-        }
-    }
-}
-
-impl Display for FriendRequestState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FriendRequestState::Pending => write!(f, "pending"),
-            FriendRequestState::Accepted => write!(f, "accepted"),
-            FriendRequestState::Rejected => write!(f, "rejected"),
-        }
-    }
-}
-
 #[derive(FromRow, Debug, Default, Deserialize, Serialize, Clone)]
 pub(crate) struct FriendRequest {
     #[serde(skip_deserializing, rename(serialize = "sender_id"))]
