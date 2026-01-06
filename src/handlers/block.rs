@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tracing::{debug, error};
+
 use crate::{
     application::repositories::user_repository::UserRepository,
     domain::{
@@ -32,9 +34,18 @@ pub async fn handle_block(
     };
 
     db.insert_block(&request).await.map_err(|e| match e {
-        devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-        devcord_sqlx_utils::error::Error::AlreadyExists => BlockAlreadyExists.into(),
-        _ => InternalError.into(),
+        devcord_sqlx_utils::error::Error::RowNotFound => {
+            debug!(?request.from_user_id, ?request.to_user_id, "Cannot block, user not found");
+            UserDoesNotExist.into()
+        }
+        devcord_sqlx_utils::error::Error::AlreadyExists => {
+            debug!(?request.from_user_id, ?request.to_user_id, "Block already exists");
+            BlockAlreadyExists.into()
+        }
+        e => {
+            error!(?e, "Failed to insert block");
+            InternalError.into()
+        },
     })
 }
 
@@ -54,8 +65,14 @@ pub async fn handle_unblock(
     };
 
     db.delete_block(&request).await.map_err(|e| match e {
-        devcord_sqlx_utils::error::Error::RowNotFound => BlockDoesNotExist.into(),
-        _ => InternalError.into(),
+        devcord_sqlx_utils::error::Error::RowNotFound => {
+            debug!(?request.from_user_id, ?request.to_user_id, "Block does not exist");
+            BlockDoesNotExist.into()
+        }
+        e => {
+            error!(?e, "Failed to delete block");
+            InternalError.into()
+        },
     })
 }
 
@@ -67,8 +84,14 @@ pub async fn handle_get_blocks(
     db.get_user_blocks(&user_id, &range)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?user_id, "User not found while fetching blocks");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to get user blocks");
+                InternalError.into()
+            },
         })
 }
 
@@ -80,6 +103,9 @@ pub async fn handle_is_blocked(
     match db.get_user_if_blocked(&user_id, &blocked_id).await {
         Ok(_) => Ok(true),
         Err(devcord_sqlx_utils::error::Error::RowNotFound) => Ok(false),
-        Err(_) => Err(InternalError.into()),
+        Err(e) => {
+            error!(?e, "Failed to check if user is blocked");
+            Err(InternalError.into())
+        }
     }
 }

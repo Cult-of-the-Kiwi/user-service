@@ -7,6 +7,7 @@ use devcord_events::{
     },
     publisher::EventManager,
 };
+use tracing::{debug, error};
 
 use crate::{
     application::repositories::user_repository::UserRepository,
@@ -47,17 +48,32 @@ pub async fn handle_request_friend(
     db.insert_friend_request(&request)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            devcord_sqlx_utils::error::Error::AlreadyExists => FriendRequestAlreadyExists.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?request.from_user_id, ?request.to_user_id, "Cannot send friend request, user not found");
+                UserDoesNotExist.into()
+            }
+            devcord_sqlx_utils::error::Error::AlreadyExists => {
+                debug!(?request.from_user_id, ?request.to_user_id, "Friend request already exists");
+                FriendRequestAlreadyExists.into()
+            }
+            e => {
+                error!(?e, "Failed to create friend request");
+                InternalError.into()
+            },
         })?;
 
     let sender = db
         .get_user(&request.from_user_id)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(user_id=?request.from_user_id, "Sender not found while creating friend request");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to fetch sender for friend request");
+                InternalError.into()
+            },
         })?;
 
     let event = Event::UserEvent(UserEvent::FriendRequestCreatedEvent(FriendRequestCreated {
@@ -66,7 +82,10 @@ pub async fn handle_request_friend(
     event_manager
         .notify(event)
         .await
-        .map_err(|_| InternalError.into())
+        .map_err(|e| {
+            error!(?e, "Failed to publish friend request created event");
+            InternalError.into()
+        })
 }
 
 pub async fn handle_accept_request(
@@ -87,8 +106,14 @@ pub async fn handle_accept_request(
     };
 
     let mut existing = db.get_friend_request(&request).await.map_err(|e| match e {
-        devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
-        _ => InternalError.into(),
+        devcord_sqlx_utils::error::Error::RowNotFound => {
+            debug!(?request.from_user_id, ?request.to_user_id, "Friend request does not exist");
+            FriendRequestDoesNotExist.into()
+        }
+        e => {
+            error!(?e, "Failed to fetch friend request");
+            InternalError.into()
+        },
     })?;
 
     if !existing.is_pending() {
@@ -100,23 +125,45 @@ pub async fn handle_accept_request(
     db.update_friend_request(&existing)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?request.from_user_id, ?request.to_user_id, "Friend request vanished before updating");
+                FriendRequestDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to update friend request");
+                InternalError.into()
+            },
         })?;
 
     db.insert_friendship(&existing.from_user_id, &existing.to_user_id)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(
+                    from_user_id=?existing.from_user_id,
+                    to_user_id=?existing.to_user_id,
+                    "Cannot create friendship, user not found"
+                );
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to insert friendship");
+                InternalError.into()
+            },
         })?;
 
     let sender = db
         .get_user(&existing.from_user_id)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(user_id=?existing.from_user_id, "Sender not found while accepting friend request");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to fetch sender for friend request answer");
+                InternalError.into()
+            },
         })?;
 
     let event = Event::UserEvent(UserEvent::FriendRequestAnsweredEvent(
@@ -128,7 +175,10 @@ pub async fn handle_accept_request(
     event_manager
         .notify(event)
         .await
-        .map_err(|_| InternalError.into())
+        .map_err(|e| {
+            error!(?e, "Failed to publish friend request answered event");
+            InternalError.into()
+        })
 }
 
 pub async fn handle_reject_request(
@@ -149,8 +199,14 @@ pub async fn handle_reject_request(
     };
 
     let mut existing = db.get_friend_request(&request).await.map_err(|e| match e {
-        devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
-        _ => InternalError.into(),
+        devcord_sqlx_utils::error::Error::RowNotFound => {
+            debug!(?request.from_user_id, ?request.to_user_id, "Friend request does not exist");
+            FriendRequestDoesNotExist.into()
+        }
+        e => {
+            error!(?e, "Failed to fetch friend request");
+            InternalError.into()
+        },
     })?;
 
     if !existing.is_pending() {
@@ -162,16 +218,28 @@ pub async fn handle_reject_request(
     db.update_friend_request(&existing)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?request.from_user_id, ?request.to_user_id, "Friend request vanished before updating");
+                FriendRequestDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to update friend request");
+                InternalError.into()
+            },
         })?;
 
     let sender = db
         .get_user(&existing.from_user_id)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(user_id=?existing.from_user_id, "Sender not found while rejecting friend request");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to fetch sender for rejected friend request");
+                InternalError.into()
+            },
         })?;
 
     let event = Event::UserEvent(UserEvent::FriendRequestAnsweredEvent(
@@ -183,7 +251,10 @@ pub async fn handle_reject_request(
     event_manager
         .notify(event)
         .await
-        .map_err(|_| InternalError.into())
+        .map_err(|e| {
+            error!(?e, "Failed to publish friend request rejected event");
+            InternalError.into()
+        })
 }
 
 pub async fn handle_delete_request(
@@ -205,8 +276,14 @@ pub async fn handle_delete_request(
     db.delete_friend_request(&request)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => FriendRequestDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?request.from_user_id, ?request.to_user_id, "Friend request does not exist to delete");
+                FriendRequestDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to delete friend request");
+                InternalError.into()
+            },
         })
 }
 
@@ -217,7 +294,10 @@ pub async fn handle_get_requests_sent(
 ) -> Result<Vec<FriendRequest>, Error> {
     db.get_friend_requests(&user_id, &range, &FriendRequestDirection::Sent)
         .await
-        .map_err(|_| InternalError.into())
+        .map_err(|e| {
+            error!(?e, "Failed to fetch sent friend requests");
+            InternalError.into()
+        })
 }
 
 pub async fn handle_get_requests_received(
@@ -227,5 +307,8 @@ pub async fn handle_get_requests_received(
 ) -> Result<Vec<FriendRequest>, Error> {
     db.get_friend_requests(&user_id, &range, &FriendRequestDirection::Received)
         .await
-        .map_err(|_| InternalError.into())
+        .map_err(|e| {
+            error!(?e, "Failed to fetch received friend requests");
+            InternalError.into()
+        })
 }

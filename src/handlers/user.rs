@@ -7,6 +7,7 @@ use devcord_events::{
     },
     publisher::EventManager,
 };
+use tracing::{debug, error};
 
 use crate::{
     application::repositories::user_repository::UserRepository,
@@ -26,21 +27,36 @@ pub async fn handle_update_user(
     db.update_user(&user_id, &request)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?user_id, "User not found");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to update user");
+                InternalError.into()
+            },
         })?;
 
     let event = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated { id: user_id }));
     event_manager
         .notify(event)
         .await
-        .map_err(|_| InternalError.into())
+        .map_err(|e| {
+            error!(?e, "Failed to publish UserUpdated event");
+            InternalError.into()
+        })
 }
 
 pub async fn handle_get_user(db: &Arc<dyn UserRepository>, user_id: UserID) -> Result<User, Error> {
     let result = db.get_user(&user_id).await.map_err(|e| match e {
-        devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-        _ => InternalError.into(),
+        devcord_sqlx_utils::error::Error::RowNotFound => {
+            debug!(?user_id, "User not found");
+            UserDoesNotExist.into()
+        }
+        e => {
+            error!(?e, "Failed to fetch user");
+            InternalError.into()
+        },
     })?;
 
     Ok(result)

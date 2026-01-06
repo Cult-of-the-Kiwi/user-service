@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tracing::{debug, error};
+
 use crate::{
     application::repositories::user_repository::UserRepository,
     domain::{
@@ -20,8 +22,14 @@ pub async fn handle_get_friends(
     db.get_user_friends(&user_id, &range)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?user_id, "User not found while fetching friends");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to fetch friends");
+                InternalError.into()
+            },
         })
 }
 
@@ -42,8 +50,14 @@ pub async fn handle_remove_friend(
     db.delete_friendship(&friendship)
         .await
         .map_err(|e| match e {
-            devcord_sqlx_utils::error::Error::RowNotFound => UserDoesNotExist.into(),
-            _ => InternalError.into(),
+            devcord_sqlx_utils::error::Error::RowNotFound => {
+                debug!(?user_id, ?friend_id, "Friendship does not exist");
+                UserDoesNotExist.into()
+            }
+            e => {
+                error!(?e, "Failed to delete friendship");
+                InternalError.into()
+            },
         })
 }
 
@@ -55,6 +69,9 @@ pub async fn handle_is_friend(
     match db.get_user_if_friend(&user_id, &friend_id).await {
         Ok(_) => Ok(true),
         Err(devcord_sqlx_utils::error::Error::RowNotFound) => Ok(false),
-        Err(_) => Err(InternalError.into()),
+        Err(e) => {
+            error!(?e, "Failed to check friendship status");
+            Err(InternalError.into())
+        }
     }
 }
