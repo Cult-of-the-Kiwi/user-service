@@ -37,22 +37,12 @@ pub(crate) struct AppState {
     pub event_manager: Arc<dyn EventManager<Event = Event>>,
 }
 
+#[derive(Default)]
 pub struct AppBuilder {
     db: Option<Box<dyn UserRepository>>,
     event_manager: Option<Box<dyn EventManager<Event = Event>>>,
     cors_layer: Option<CorsLayer>,
     trace_layer: Option<TraceLayer<SharedClassifier<ServerErrorsAsFailures>>>,
-}
-
-impl Default for AppBuilder {
-    fn default() -> Self {
-        Self {
-            db: None,
-            event_manager: None,
-            cors_layer: None,
-            trace_layer: None,
-        }
-    }
 }
 
 impl AppBuilder {
