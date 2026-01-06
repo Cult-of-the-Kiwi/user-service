@@ -135,7 +135,7 @@ impl AppBuilder {
             .with(EnvFilter::from_default_env())
             .init();
 
-        let trace_layer = TraceLayer::new_for_http();
+        let trace_layer = self.trace_layer.unwrap_or_else(TraceLayer::new_for_http);
 
         let mut router = api::new();
         if let Some(cors) = self.cors_layer {
