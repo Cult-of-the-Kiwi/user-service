@@ -1,5 +1,10 @@
 # User Service API
 
+## Run modes (Postgres/Fluvio vs In-Memory)
+- Postgres + Fluvio (default): `cargo run`
+- In-memory (DB and events): `cargo run -- --db=memory --events=memory`
+- Mix as needed: `cargo run -- --db=postgres --events=memory` (or the opposite)
+
 HTTP service (Axum) to manage users, friendships, and blocks.
 
 ## Conventions
