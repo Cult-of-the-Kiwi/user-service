@@ -38,29 +38,29 @@ impl IntoResponse for Error {
     }
 }
 
-impl Into<Error> for user::UserError {
-    fn into(self) -> Error {
-        Error::User(self)
+impl From<user::UserError> for Error {
+    fn from(val: user::UserError) -> Self {
+        Error::User(val)
     }
 }
-impl Into<Error> for domain::DomainError {
-    fn into(self) -> Error {
-        Error::Domain(self)
+impl From<domain::DomainError> for Error {
+    fn from(val: domain::DomainError) -> Self {
+        Error::Domain(val)
     }
 }
-impl Into<Error> for friend_request::FriendRequestError {
-    fn into(self) -> Error {
-        Error::FriendRequest(self)
+impl From<friend_request::FriendRequestError> for Error {
+    fn from(val: friend_request::FriendRequestError) -> Self {
+        Error::FriendRequest(val)
     }
 }
-impl Into<Error> for block::BlockError {
-    fn into(self) -> Error {
-        Error::Block(self)
+impl From<block::BlockError> for Error {
+    fn from(val: block::BlockError) -> Self {
+        Error::Block(val)
     }
 }
-impl Into<Error> for friendship::FriendshipError {
-    fn into(self) -> Error {
-        Error::Friendship(self)
+impl From<friendship::FriendshipError> for Error {
+    fn from(val: friendship::FriendshipError) -> Self {
+        Error::Friendship(val)
     }
 }
 

@@ -29,11 +29,11 @@ pub async fn handle_update_user(
         .map_err(|e| match e {
             devcord_sqlx_utils::error::Error::RowNotFound => {
                 debug!(?user_id, "User not found");
-                UserDoesNotExist.into()
+                Error::from(UserDoesNotExist)
             }
             e => {
                 error!(?e, "Failed to update user");
-                InternalError.into()
+                Error::from(InternalError)
             }
         })?;
 
@@ -48,11 +48,11 @@ pub async fn handle_get_user(db: &Arc<dyn UserRepository>, user_id: UserID) -> R
     let result = db.get_user(&user_id).await.map_err(|e| match e {
         devcord_sqlx_utils::error::Error::RowNotFound => {
             debug!(?user_id, "User not found");
-            UserDoesNotExist.into()
+            Error::from(UserDoesNotExist)
         }
         e => {
             error!(?e, "Failed to fetch user");
-            InternalError.into()
+            Error::from(InternalError)
         }
     })?;
 

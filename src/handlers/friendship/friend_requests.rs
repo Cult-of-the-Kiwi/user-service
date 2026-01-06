@@ -40,7 +40,7 @@ pub async fn handle_request_friend(
 
     let tx = db.begin_tx().await.map_err(|e| {
         error!(?e, "Failed to start transaction for friend request");
-        InternalError.into()
+        InternalError
     })?;
 
     let request = FriendRequest {
@@ -87,7 +87,7 @@ pub async fn handle_request_friend(
 
     tx.commit().await.map_err(|e| {
         error!(?e, "Failed to commit friend request transaction");
-        InternalError.into()
+        InternalError
     })?;
 
     let event = Event::UserEvent(UserEvent::FriendRequestCreatedEvent(FriendRequestCreated {
@@ -114,7 +114,7 @@ pub async fn handle_accept_request(
             ?e,
             "Failed to start transaction for accepting friend request"
         );
-        InternalError.into()
+        InternalError
     })?;
 
     let request = FriendRequest {
@@ -202,7 +202,7 @@ pub async fn handle_accept_request(
 
     tx.commit().await.map_err(|e| {
         error!(?e, "Failed to commit accept friend request transaction");
-        InternalError.into()
+        InternalError
     })?;
 
     let event = Event::UserEvent(UserEvent::FriendRequestAnsweredEvent(
@@ -232,7 +232,7 @@ pub async fn handle_reject_request(
             ?e,
             "Failed to start transaction for rejecting friend request"
         );
-        InternalError.into()
+        InternalError
     })?;
 
     let request = FriendRequest {
@@ -299,7 +299,7 @@ pub async fn handle_reject_request(
 
     tx.commit().await.map_err(|e| {
         error!(?e, "Failed to commit reject friend request transaction");
-        InternalError.into()
+        InternalError
     })?;
 
     let event = Event::UserEvent(UserEvent::FriendRequestAnsweredEvent(
