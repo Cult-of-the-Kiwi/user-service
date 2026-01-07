@@ -1,190 +1,173 @@
-use std::{env::var, net::SocketAddr, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
+use anyhow::{Context, Ok};
 use axum::{
     Router,
     http::{HeaderValue, Method, header},
-    routing::{get, post},
-    serve,
 };
-use fluvio::{Fluvio, FluvioConfig, TopicProducer, metadata::topic::TopicSpec, spu::SpuSocketPool};
-use sqlx::postgres::PgPoolOptions;
-use tokio::net::TcpListener;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use devcord_events::{
+    events::{
+        Event,
+        auth::{AuthEvent, UserCreated},
+    },
+    publisher::{EventManager, topic::fluvio::FluvioHandler},
+};
+use dotenvy::var;
+use tower_http::{
+    classify::{ServerErrorsAsFailures, SharedClassifier},
+    cors::CorsLayer,
+    trace::TraceLayer,
+};
+use tracing::warn;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::{api, application::repositories::user_repository::UserRepository};
 use crate::{
-    fluvio_consumer,
-    request::{
-        block::{block_user, get_blocked, unblock_user},
-        friendships::{
-            accept_friend, get_friends, get_request_received, get_request_sent, reject_friend,
-            request_friend,
-        },
-        user::{get_user_info, update_profile},
+    domain::models::user::User,
+    infrastructure::{
+        context::db::postgres::{PgOptions, new_pg_pool},
+        events::in_memory::InMemoryEventManager,
+        repositories::{in_memory::InMemoryUserRepository, postgres::PostgresUserRepository},
     },
-    sql_utils::init::init,
 };
 
 #[derive(Clone)]
-pub struct AppState {
-    pub db: sqlx::PgPool,
-    pub request_sent_producer: TopicProducer<SpuSocketPool>,
-    pub request_answered_producer: TopicProducer<SpuSocketPool>,
+pub(crate) struct AppState {
+    pub db: Arc<dyn UserRepository>,
+    pub event_manager: Arc<dyn EventManager<Event = Event>>,
 }
 
-pub async fn app() -> anyhow::Result<(Router, Fluvio, sqlx::PgPool)> {
-    let origins: Vec<HeaderValue> = var("CORS_ORIGIN")
-        .expect("CORS_ORIGIN env not set")
-        .split(",")
-        .map(|e| e.trim().parse::<HeaderValue>())
-        .collect::<Result<_, _>>()?;
+#[derive(Default)]
+pub struct AppBuilder {
+    db: Option<Box<dyn UserRepository>>,
+    event_manager: Option<Box<dyn EventManager<Event = Event>>>,
+    cors_layer: Option<CorsLayer>,
+    trace_layer: Option<TraceLayer<SharedClassifier<ServerErrorsAsFailures>>>,
+}
 
-    let cors_layer = CorsLayer::new()
-        .allow_origin(origins)
-        .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([
-            header::CONTENT_TYPE,
-            header::AUTHORIZATION,
-            header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        ]);
+impl AppBuilder {
+    pub async fn with_db_postgres(mut self) -> anyhow::Result<Self> {
+        let max_conns: u32 = var("DB_MAX_CONNECTIONS")
+            .unwrap_or("1".to_owned())
+            .parse()
+            .expect("DB_MAX_CONNECTIONS must be a number");
 
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(EnvFilter::from_default_env())
-        .init();
+        let db_timeout: u64 = var("DB_POOL_TIMEOUT_SECS")
+            .unwrap_or("10".to_owned())
+            .parse()
+            .expect("DB_POOL_TIMEOUT_SECS must be a number");
 
-    let trace_layer = TraceLayer::new_for_http();
-
-    let max_conns: u32 = var("DB_MAX_CONNECTIONS")
-        .unwrap_or("1".to_owned())
-        .parse()
-        .expect("DB_MAX_CONNECTIONS must be a number");
-
-    let db_timeout: u64 = var("DB_POOL_TIMEOUT_SECS")
-        .unwrap_or("10".to_owned())
-        .parse()
-        .expect("DB_POOL_TIMEOUT_SECS must be a number");
-
-    let db = PgPoolOptions::new()
-        .max_connections(max_conns)
-        .acquire_timeout(Duration::from_secs(db_timeout))
-        .connect(
-            var("DATABASE_URL")
+        let db = new_pg_pool(&PgOptions {
+            url: var("DATABASE_URL")
                 .expect("DATABASE_URL env not set")
                 .trim(),
+            max_conns,
+            acquire_timeout: Duration::from_secs(db_timeout),
+        })
+        .await?;
+
+        self.db = Some(Box::new(PostgresUserRepository::new(db)));
+
+        Ok(self)
+    }
+
+    pub async fn with_db_in_memory(mut self) -> anyhow::Result<Self> {
+        self.db = Some(Box::new(InMemoryUserRepository::new(Vec::new())));
+        Ok(self)
+    }
+
+    pub async fn with_event_manager_fluvio(mut self) -> anyhow::Result<Self> {
+        self.event_manager = Some(Box::new(FluvioHandler::new()?));
+
+        Ok(self)
+    }
+
+    pub fn with_event_manager_in_memory(mut self) -> anyhow::Result<Self> {
+        self.event_manager = Some(Box::new(InMemoryEventManager::new()));
+        Ok(self)
+    }
+
+    pub fn with_cors_layer_env(mut self) -> anyhow::Result<Self> {
+        let origins: Vec<HeaderValue> = var("CORS_ORIGIN")
+            .expect("CORS_ORIGIN env not set")
+            .split(",")
+            .map(|e| e.trim().parse::<HeaderValue>())
+            .collect::<Result<_, _>>()?;
+
+        let cors_layer = CorsLayer::new()
+            .allow_origin(origins)
+            .allow_credentials(true)
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([
+                header::CONTENT_TYPE,
+                header::AUTHORIZATION,
+                header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            ]);
+
+        self.cors_layer = Some(cors_layer);
+        Ok(self)
+    }
+
+    pub fn with_trace_layer(mut self) -> Self {
+        self.trace_layer = Some(TraceLayer::new_for_http());
+
+        self
+    }
+
+    pub async fn build(self) -> anyhow::Result<Router> {
+        let state = Arc::new(AppState {
+            db: Arc::from(self.db.context("Mising app database")?),
+            event_manager: Arc::from(self.event_manager.context("Mising app event manager")?),
+        });
+
+        tracing_subscriber::registry()
+            .with(fmt::layer())
+            .with(EnvFilter::from_default_env())
+            .init();
+
+        let trace_layer = self.trace_layer.unwrap_or_else(TraceLayer::new_for_http);
+
+        let mut router = api::new();
+        if let Some(cors) = self.cors_layer {
+            router = router.layer(cors);
+        }
+        let router = router.layer(trace_layer).with_state(state.clone());
+
+        register_event_listeners(state.db.clone(), state.event_manager.clone()).await?;
+
+        Ok(router)
+    }
+}
+
+pub(crate) async fn register_event_listeners(
+    db: Arc<dyn UserRepository>,
+    event_manager: Arc<dyn EventManager<Event = Event>>,
+) -> anyhow::Result<()> {
+    let user_created = Event::AuthEvent(AuthEvent::UserSignedUpEvent(UserCreated {
+        id: String::new(),
+        username: String::new(),
+    }));
+
+    event_manager
+        .subscribe(
+            user_created,
+            Box::new(move |event| {
+                let db = db.clone();
+                Box::pin(async move {
+                    if let Event::AuthEvent(AuthEvent::UserSignedUpEvent(payload)) = event {
+                        let user = User {
+                            id: payload.id,
+                            username: payload.username,
+                            created_at: None,
+                        };
+                        if let Err(e) = db.insert_user(&user).await {
+                            warn!("Failed to insert user from auth event: {e:?}");
+                        }
+                    }
+                })
+            }),
         )
         .await?;
 
-    init(&db).await?;
-
-    let mut fluvio_config =
-        FluvioConfig::new(var("FLUVIO_ADDR").expect("FLUVIO_ADDR env not set").trim());
-    fluvio_config.use_spu_local_address = true;
-
-    let fluvio = fluvio::Fluvio::connect_with_config(&fluvio_config).await?;
-
-    let auth_registered_consumer_topic = var("AUTH_REGISTER_TOPIC")
-        .unwrap_or("auth-register".to_owned())
-        .trim()
-        .to_string();
-
-    let request_producer_topic = var("USER_RESQUEST_TOPIC")
-        .unwrap_or("friendships-request".to_owned())
-        .trim()
-        .to_string();
-
-    let answered_producer_topic = var("USER_ANSWER_TOPIC")
-        .unwrap_or("friendships-answer".to_owned())
-        .trim()
-        .to_string();
-
-    let admin = fluvio.admin().await;
-
-    let topics = admin
-        .all::<TopicSpec>()
-        .await
-        .expect("Failed to list topics");
-    let topic_names = topics
-        .iter()
-        .map(|topic| topic.name.clone())
-        .collect::<Vec<String>>();
-
-    //Creates topic if they dont exist
-
-    if !topic_names.contains(&request_producer_topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(request_producer_topic.clone(), false, topic_spec)
-            .await?;
-    }
-
-    if !topic_names.contains(&answered_producer_topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(answered_producer_topic.clone(), false, topic_spec)
-            .await?;
-    }
-
-    if !topic_names.contains(&auth_registered_consumer_topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(auth_registered_consumer_topic.clone(), false, topic_spec)
-            .await?;
-    }
-
-    let request_producer = fluvio.topic_producer(request_producer_topic).await?;
-
-    let answered_producer = fluvio.topic_producer(answered_producer_topic).await?;
-
-    let state = Arc::new(AppState {
-        db: db.clone(),
-        request_sent_producer: request_producer,
-        request_answered_producer: answered_producer,
-    });
-
-    let friendships_router = Router::new()
-        .route("/request", post(request_friend))
-        .route("/accept", post(accept_friend))
-        .route("/reject", post(reject_friend))
-        .route("/sent", get(get_request_sent))
-        .route("/received", get(get_request_received))
-        .route("/friends", get(get_friends));
-
-    let block_router = Router::new()
-        .route("/block", post(block_user))
-        .route("/unblock", post(unblock_user))
-        .route("/", get(get_blocked));
-
-    let app = Router::new()
-        .nest("/friendship", friendships_router)
-        .nest("/blocks", block_router)
-        .route("/update", post(update_profile))
-        .route("/", get(get_user_info))
-        .route(
-            "/health",
-            get(|| async { "Long life to the allmighty turbofish" }),
-        )
-        .layer(cors_layer)
-        .layer(trace_layer)
-        .with_state(state);
-
-    Ok((app, fluvio, db))
-}
-
-pub async fn run() -> anyhow::Result<()> {
-    let (app, fluvio, db) = app().await?;
-
-    let addr: SocketAddr = var("SOCKET_ADDR")
-        .expect("SOCKET_ADDR env not set")
-        .parse()?;
-    let listener = TcpListener::bind(addr).await?;
-
-    println!("Server runnnig at: {addr}");
-
-    let consumer_thread = tokio::spawn(fluvio_consumer::run(fluvio, db));
-
-    serve(listener, app.into_make_service()).await?;
-    consumer_thread.await??;
     Ok(())
 }

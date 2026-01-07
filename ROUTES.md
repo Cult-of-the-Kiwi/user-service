@@ -1,0 +1,17 @@
+- GET /health
+- GET /{user}
+- POST /update
+- GET /{user}/is-friend
+- GET /{user}/is-blocked
+- GET /friendship
+- GET /friendship/friends
+- DELETE /friendship/friends/{user}
+- POST /friendship/requests/{user}
+- PUT /friendship/requests/{user}/accept
+- PUT /friendship/requests/{user}/reject
+- DELETE /friendship/requests/{user}
+- GET /friendship/requests/sent
+- GET /friendship/requests/received
+- GET /blocks
+- POST /blocks/{user}
+- DELETE /blocks/{user}
