@@ -14,6 +14,7 @@ enum DbBackend {
 #[derive(Debug, Clone, Copy)]
 enum EventBackend {
     Fluvio,
+    Kafka,
     Memory,
 }
 
@@ -40,6 +41,7 @@ fn parse_args() -> anyhow::Result<(DbBackend, EventBackend)> {
             events = match value {
                 "fluvio" => EventBackend::Fluvio,
                 "memory" => EventBackend::Memory,
+                "kafka" => EventBackend::Kafka,
                 other => {
                     bail!("Invalid --events option: {other}. Use fluvio or memory");
                 }
@@ -66,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
 
     let builder = match event_backend {
         EventBackend::Fluvio => builder.with_event_manager_fluvio().await?,
+        EventBackend::Kafka => builder.with_event_manager_kafka().await?,
         EventBackend::Memory => builder.with_event_manager_in_memory()?,
     };
 
