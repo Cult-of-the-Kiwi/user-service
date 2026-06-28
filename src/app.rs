@@ -10,7 +10,10 @@ use devcord_events::{
         Event,
         auth::{AuthEvent, UserCreated},
     },
-    publisher::{EventManager, topic::{fluvio::FluvioHandler, kafka::KafkaHandler}},
+    publisher::{
+        EventManager,
+        topic::{fluvio::FluvioHandler, kafka::KafkaHandler},
+    },
 };
 use dotenvy::var;
 use tower_http::{
