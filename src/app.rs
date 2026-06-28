@@ -10,7 +10,7 @@ use devcord_events::{
         Event,
         auth::{AuthEvent, UserCreated},
     },
-    publisher::{EventManager, topic::fluvio::FluvioHandler},
+    publisher::{EventManager, topic::{fluvio::FluvioHandler, kafka::KafkaHandler}},
 };
 use dotenvy::var;
 use tower_http::{
@@ -78,6 +78,12 @@ impl AppBuilder {
 
     pub async fn with_event_manager_fluvio(mut self) -> anyhow::Result<Self> {
         self.event_manager = Some(Box::new(FluvioHandler::new()?));
+
+        Ok(self)
+    }
+
+    pub async fn with_event_manager_kafka(mut self) -> anyhow::Result<Self> {
+        self.event_manager = Some(Box::new(KafkaHandler::new().await?));
 
         Ok(self)
     }
